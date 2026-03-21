@@ -52,3 +52,10 @@ public class AuthController {
         return ResponseEntity.ok("Register success");
     }
 
+    // ĐĂNG NHẬP
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        String result = authService.login(request.getUsername(), request.getPassword());
+        return ResponseEntity.ok(result);
+    }
+}

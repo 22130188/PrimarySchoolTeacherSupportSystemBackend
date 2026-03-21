@@ -15,8 +15,36 @@ import java.util.List;
 @Configuration
 public class SecurityConfig {
 
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
+
     public SecurityConfig(OAuth2SuccessHandler oAuth2SuccessHandler) {
         this.oAuth2SuccessHandler = oAuth2SuccessHandler;
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**", "/login/oauth2/**", "/oauth2/**").permitAll()
+                        .anyRequest().authenticated()
+                )
+                .httpBasic(httpBasic -> httpBasic.disable())
+
+                // ── Thêm OAuth2 login ──
+                .oauth2Login(oauth2 -> oauth2
+                        .successHandler(oAuth2SuccessHandler)
+                        // URL Google sẽ redirect về sau khi login thành công
+                        .authorizationEndpoint(auth ->
+                                auth.baseUri("/oauth2/authorize")
+                        )
+                        .redirectionEndpoint(redir ->
+                                redir.baseUri("/login/oauth2/code/*")
+                        )
+                );
+
+        return http.build();
     }
 
     @Bean
