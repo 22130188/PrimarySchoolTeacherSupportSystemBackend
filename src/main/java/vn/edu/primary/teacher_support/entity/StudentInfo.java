@@ -1,9 +1,15 @@
 package vn.edu.primary.teacher_support.entity;
 
 import jakarta.persistence.*;
+import lombok.*;
 
 @Entity
 @Table(name = "student_info")
+@Getter
+@Setter
+@NoArgsConstructor
+@EqualsAndHashCode(of = "id")
+@ToString(exclude = "user")
 public class StudentInfo {
 
     @Id
@@ -15,20 +21,10 @@ public class StudentInfo {
     private User user;
 
     @Column(nullable = false)
-    private String grade;   // VD: 1A, 2B, 5C
-
-    public StudentInfo() {}
+    private String grade;
 
     public StudentInfo(User user, String grade) {
-        this.user  = user;
+        this.user = user;
         this.grade = grade;
     }
-
-    public Long getId() { return id; }
-
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
-
-    public String getGrade() { return grade; }
-    public void setGrade(String grade) { this.grade = grade; }
 }
