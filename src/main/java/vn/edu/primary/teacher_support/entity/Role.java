@@ -1,9 +1,12 @@
 package vn.edu.primary.teacher_support.entity;
 
 import jakarta.persistence.*;
+import lombok.*;
 
 @Entity
 @Table(name = "roles")
+@Data
+@NoArgsConstructor
 public class Role {
 
     public enum RoleName {
@@ -18,13 +21,7 @@ public class Role {
     @Column(nullable = false, unique = true)
     private RoleName name;
 
-    public Role() {}
-
     public Role(RoleName name) {
         this.name = name;
     }
-
-    public Long getId() { return id; }
-    public RoleName getName() { return name; }
-    public void setName(RoleName name) { this.name = name; }
 }
