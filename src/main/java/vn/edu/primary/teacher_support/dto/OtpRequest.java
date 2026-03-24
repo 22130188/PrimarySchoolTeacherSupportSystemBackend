@@ -2,7 +2,7 @@ package vn.edu.primary.teacher_support.dto;
 
 public class OtpRequest {
     private String email;
-    private String otp;   // chỉ dùng khi verify
+    private String otp;
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }

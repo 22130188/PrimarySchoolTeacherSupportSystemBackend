@@ -86,6 +86,12 @@ public class User {
     public Set<TeacherClass> getTeacherClasses() { return teacherClasses; }
     public void setTeacherClasses(Set<TeacherClass> teacherClasses) { this.teacherClasses = teacherClasses; }
 
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
+
+    public LocalDate getDateOfBirth() { return dateOfBirth; }
+    public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

@@ -8,7 +8,10 @@ import vn.edu.primary.teacher_support.dto.OtpRequest;
 import vn.edu.primary.teacher_support.dto.RegisterRequest;
 import vn.edu.primary.teacher_support.entity.User;
 import vn.edu.primary.teacher_support.service.AuthService;
+import vn.edu.primary.teacher_support.service.JwtService;
 import vn.edu.primary.teacher_support.service.OtpService;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -16,18 +19,21 @@ public class AuthController {
 
     private final AuthService authService;
     private final OtpService  otpService;
+    private final JwtService  jwtService;
 
-    public AuthController(AuthService authService, OtpService otpService) {
+    public AuthController(AuthService authService,
+                          OtpService otpService,
+                          JwtService jwtService) {
         this.authService = authService;
         this.otpService  = otpService;
+        this.jwtService  = jwtService;
     }
 
-    //  GỬI OTP
+    // GỬI OTP
     @PostMapping("/send-otp")
     public ResponseEntity<?> sendOtp(@RequestBody OtpRequest request) {
-        if (request.getEmail() == null || request.getEmail().isBlank()) {
-            return ResponseEntity.badRequest().body("Email không được để trống");
-        }
+        if (request.getEmail() == null || request.getEmail().isBlank())
+            return ResponseEntity.badRequest().body(Map.of("message", "Email không được để trống"));
         otpService.sendOtp(request.getEmail().trim());
         return ResponseEntity.ok("OTP sent");
     }
@@ -36,26 +42,24 @@ public class AuthController {
     @PostMapping("/verify-otp")
     public ResponseEntity<?> verifyOtp(@RequestBody OtpRequest request) {
         boolean valid = otpService.verifyOtp(
-                request.getEmail().trim(),
-                request.getOtp().trim()
-        );
-        if (!valid) {
-            return ResponseEntity.badRequest().body("OTP không đúng hoặc đã hết hạn");
-        }
+                request.getEmail().trim(), request.getOtp().trim());
+        if (!valid)
+            return ResponseEntity.badRequest().body(Map.of("message", "OTP không đúng hoặc đã hết hạn"));
         return ResponseEntity.ok("OTP verified");
     }
 
-    //  ĐĂNG KÝ
+    // ĐĂNG KÝ
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
-        User newUser = authService.register(request);
-        return ResponseEntity.ok("Register success");
+        authService.register(request);
+        return ResponseEntity.ok(Map.of("message", "Register success"));
     }
 
     // ĐĂNG NHẬP
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        String result = authService.login(request.getUsername(), request.getPassword());
-        return ResponseEntity.ok(result);
+        User user  = authService.loginGetUser(request.getUsername(), request.getPassword());
+        String jwt = jwtService.generateToken(user);
+        return ResponseEntity.ok(Map.of("token", jwt));
     }
 }

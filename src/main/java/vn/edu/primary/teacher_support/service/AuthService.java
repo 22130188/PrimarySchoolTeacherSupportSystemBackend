@@ -108,4 +108,13 @@ public class AuthService {
             default -> throw new RuntimeException("Role không hợp lệ: " + role);
         };
     }
+    public User loginGetUser(String username, String password) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại"));
+        if (!user.getIsActive())
+            throw new RuntimeException("Tài khoản đã bị khóa");
+        if (!passwordEncoder.matches(password, user.getPassword()))
+            throw new RuntimeException("Mật khẩu không đúng");
+        return user;
+    }
 }

@@ -4,21 +4,24 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
 import java.util.List;
 
 @Configuration
 public class SecurityConfig {
 
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final JwtAuthFilter        jwtAuthFilter;
 
-    public SecurityConfig(OAuth2SuccessHandler oAuth2SuccessHandler) {
+    public SecurityConfig(OAuth2SuccessHandler oAuth2SuccessHandler,
+                          JwtAuthFilter jwtAuthFilter) {
         this.oAuth2SuccessHandler = oAuth2SuccessHandler;
+        this.jwtAuthFilter        = jwtAuthFilter;
     }
 
     @Bean
@@ -27,21 +30,21 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/login/oauth2/**", "/oauth2/**").permitAll()
+                        .requestMatchers("/api/auth/**",
+                                "/login/oauth2/**",
+                                "/oauth2/**").permitAll()
+                        .requestMatchers("/api/user/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .httpBasic(httpBasic -> httpBasic.disable())
-
-                // ── Thêm OAuth2 login ──
+                .addFilterBefore(jwtAuthFilter,
+                        UsernamePasswordAuthenticationFilter.class)
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(oAuth2SuccessHandler)
-                        // URL Google sẽ redirect về sau khi login thành công
-                        .authorizationEndpoint(auth ->
-                                auth.baseUri("/oauth2/authorize")
-                        )
-                        .redirectionEndpoint(redir ->
-                                redir.baseUri("/login/oauth2/code/*")
-                        )
+                        .authorizationEndpoint(a ->
+                                a.baseUri("/oauth2/authorize"))
+                        .redirectionEndpoint(r ->
+                                r.baseUri("/login/oauth2/code/*"))
                 );
 
         return http.build();
@@ -58,7 +61,8 @@ public class SecurityConfig {
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
     }
