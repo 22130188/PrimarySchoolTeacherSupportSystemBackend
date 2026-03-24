@@ -21,35 +21,81 @@ public class RegisterRequest {
     private String schoolName;
     private String grade;
     private List<TeacherClassDto> classes;
+
     public static class TeacherClassDto {
         private String grade;
         private String subject;
 
-        public String getGrade()   { return grade; }
-        public void setGrade(String grade) { this.grade = grade; }
+        public String getGrade() {
+            return grade;
+        }
 
-        public String getSubject() { return subject; }
-        public void setSubject(String subject) { this.subject = subject; }
+        public void setGrade(String grade) {
+            this.grade = grade;
+        }
+
+        public String getSubject() {
+            return subject;
+        }
+
+        public void setSubject(String subject) {
+            this.subject = subject;
+        }
     }
 
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    public String getUsername() {
+        return username;
+    }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
+    public String getEmail() {
+        return email;
+    }
 
-    public String getRole() { return role; }
-    public void setRole(String role) { this.role = role; }
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-    public String getSchoolName() { return schoolName; }
-    public void setSchoolName(String schoolName) { this.schoolName = schoolName; }
+    public String getPassword() {
+        return password;
+    }
 
-    public String getGrade() { return grade; }
-    public void setGrade(String grade) { this.grade = grade; }
+    public void setPassword(String password) {
+        this.password = password;
+    }
 
-    public List<TeacherClassDto> getClasses() { return classes; }
-    public void setClasses(List<TeacherClassDto> classes) { this.classes = classes; }
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public String getSchoolName() {
+        return schoolName;
+    }
+
+    public void setSchoolName(String schoolName) {
+        this.schoolName = schoolName;
+    }
+
+    public String getGrade() {
+        return grade;
+    }
+
+    public void setGrade(String grade) {
+        this.grade = grade;
+    }
+
+    public List<TeacherClassDto> getClasses() {
+        return classes;
+    }
+
+    public void setClasses(List<TeacherClassDto> classes) {
+        this.classes = classes;
+    }
 }

@@ -28,6 +28,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/login/oauth2/**", "/oauth2/**").permitAll()
+                        .requestMatchers("/api/admin/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .httpBasic(httpBasic -> httpBasic.disable())
@@ -54,7 +55,7 @@ public class SecurityConfig {
                 "http://localhost:5173",
                 "http://localhost:5174"
         ));
-        config.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
+        config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 
