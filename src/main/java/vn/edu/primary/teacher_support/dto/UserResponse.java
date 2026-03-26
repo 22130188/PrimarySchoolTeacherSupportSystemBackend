@@ -22,6 +22,8 @@ public class UserResponse {
     private String phone;
     private LocalDate dateOfBirth;
     private String schoolName;
+    private String gender;
+    private String position;
     private String role;
     private Boolean isActive;
     private Boolean isEmailVerified;
@@ -56,6 +58,8 @@ public class UserResponse {
                 .phone(user.getPhone())
                 .dateOfBirth(user.getDateOfBirth())
                 .schoolName(user.getSchoolName())
+                .gender(user.getGender())
+                .position(user.getPosition())
                 .role(primaryRole)
                 .isActive(user.getIsActive())
                 .isEmailVerified(user.getIsEmailVerified())

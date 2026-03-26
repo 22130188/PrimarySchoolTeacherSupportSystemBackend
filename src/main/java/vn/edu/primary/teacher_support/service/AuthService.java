@@ -86,8 +86,8 @@ public class AuthService {
         return userRepository.save(saved);
     }
 
-    // LOGIN
-    public String login(String username, String password) {
+    // LOGIN - token + role
+    public String[] login(String username, String password) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại"));
 
@@ -99,10 +99,38 @@ public class AuthService {
             throw new RuntimeException("Mật khẩu không đúng");
         }
 
-        return jwtService.generateToken(user);
+        String token = jwtService.generateToken(user);
+        String[] result = new String[3];
+        result[0] = token;
+        
+        // role
+        Role.RoleName primaryRole = user.getRoles().stream()
+                .map(Role::getName)
+                .max(java.util.Comparator.comparingInt(this::rolePriority))
+                .orElse(Role.RoleName.STUDENT);
+        
+        result[1] = String.valueOf(getRoleId(primaryRole));
+        result[2] = primaryRole.name();
+        
+        return result;
     }
 
-    // Helper
+    private Integer getRoleId(Role.RoleName roleName) {
+        return switch (roleName) {
+            case STUDENT -> 1;
+            case TEACHER -> 2;
+            case ADMIN -> 3;
+        };
+    }
+
+    private int rolePriority(Role.RoleName roleName) {
+        return switch (roleName) {
+            case STUDENT -> 0;
+            case TEACHER -> 1;
+            case ADMIN -> 2;
+        };
+    }
+
     private Role.RoleName parseRole(String role) {
         return switch (role.toUpperCase()) {
             case "STUDENT"  -> Role.RoleName.STUDENT;

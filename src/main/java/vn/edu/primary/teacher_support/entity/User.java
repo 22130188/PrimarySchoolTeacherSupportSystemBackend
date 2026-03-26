@@ -34,6 +34,8 @@ public class User {
     private String phone;
     private LocalDate dateOfBirth;
     private String schoolName;
+    private String gender;
+    private String position;
 
     private Boolean isActive = true;
     private Boolean isEmailVerified = false;

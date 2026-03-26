@@ -55,7 +55,10 @@ public class AuthController {
     // ĐĂNG NHẬP
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        String token = authService.login(request.getUsername(), request.getPassword());
-        return ResponseEntity.ok(new LoginResponse(token));
+        String[] loginResult = authService.login(request.getUsername(), request.getPassword());
+        String token = loginResult[0];
+        Integer roleId = Integer.parseInt(loginResult[1]);
+        String roleName = loginResult[2];
+        return ResponseEntity.ok(new LoginResponse(token, roleId, roleName));
     }
 }
