@@ -4,9 +4,9 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.primary.teacher_support.dto.LoginRequest;
+import vn.edu.primary.teacher_support.dto.LoginResponse;
 import vn.edu.primary.teacher_support.dto.OtpRequest;
 import vn.edu.primary.teacher_support.dto.RegisterRequest;
-import vn.edu.primary.teacher_support.entity.User;
 import vn.edu.primary.teacher_support.service.AuthService;
 import vn.edu.primary.teacher_support.service.OtpService;
 
@@ -48,14 +48,14 @@ public class AuthController {
     //  ĐĂNG KÝ
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
-        User newUser = authService.register(request);
+        authService.register(request);
         return ResponseEntity.ok("Register success");
     }
 
     // ĐĂNG NHẬP
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        String result = authService.login(request.getUsername(), request.getPassword());
-        return ResponseEntity.ok(result);
+        String token = authService.login(request.getUsername(), request.getPassword());
+        return ResponseEntity.ok(new LoginResponse(token));
     }
 }
