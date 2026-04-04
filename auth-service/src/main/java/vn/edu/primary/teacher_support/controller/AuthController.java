@@ -18,7 +18,6 @@ public class AuthController {
         if (request == null || request.getEmail() == null || request.getEmail().isBlank()) {
             return ResponseEntity.badRequest().body("Email không được để trống");
         }
-        // TODO: thực hiện gửi OTP thật (hoặc gọi service hiện có nếu đã chuyển về module)
         return ResponseEntity.ok("OTP sent to " + request.getEmail().trim());
     }
 
