@@ -25,6 +25,7 @@
         <module>user-service</module>
         <module>tts-service</module>
         <module>image-service</module>
+        <module>classroom-service</module>
     </modules>
 
     <properties>

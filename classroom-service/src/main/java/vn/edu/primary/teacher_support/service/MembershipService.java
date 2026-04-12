@@ -1,0 +1,157 @@
+package vn.edu.primary.teacher_support.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import vn.edu.primary.teacher_support.dto.ClassroomResponse;
+import vn.edu.primary.teacher_support.dto.UserDto;
+import vn.edu.primary.teacher_support.entity.Classroom;
+import vn.edu.primary.teacher_support.entity.ClassroomInvitation;
+import vn.edu.primary.teacher_support.entity.ClassroomMember;
+import vn.edu.primary.teacher_support.entity.enums.InvitationStatus;
+import vn.edu.primary.teacher_support.entity.enums.JoinType;
+import vn.edu.primary.teacher_support.entity.enums.MemberStatus;
+import vn.edu.primary.teacher_support.exception.BusinessException;
+import vn.edu.primary.teacher_support.exception.ResourceNotFoundException;
+import vn.edu.primary.teacher_support.repository.ClassroomInvitationRepository;
+import vn.edu.primary.teacher_support.repository.ClassroomMemberRepository;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class MembershipService {
+
+    private final ClassroomMemberRepository memberRepository;
+    private final ClassroomInvitationRepository invitationRepository;
+    private final ClassroomService classroomService;
+    private final InvitationService invitationService;
+    private final UserServiceClient userServiceClient;
+
+
+    @Transactional
+    public ClassroomResponse joinByInviteLink(String token, Long studentId) {
+        Classroom classroom = classroomService.findByInviteLinkToken(token);
+        validateNotAlreadyMember(classroom.getId(), studentId);
+
+        ClassroomMember member = ClassroomMember.builder()
+                .classroom(classroom)
+                .studentId(studentId)
+                .joinType(JoinType.INVITE_LINK)
+                .status(MemberStatus.ACTIVE)
+                .build();
+
+        memberRepository.save(member);
+        log.info("Student {} joined classroom {} via invite link", studentId, classroom.getId());
+        return classroomService.getClassroom(classroom.getId(), studentId);
+    }
+
+
+    @Transactional
+    public ClassroomResponse joinByClassCode(String classCode, Long studentId) {
+        Classroom classroom = classroomService.findByClassCode(classCode.trim().toUpperCase());
+        validateNotAlreadyMember(classroom.getId(), studentId);
+
+        ClassroomMember member = ClassroomMember.builder()
+                .classroom(classroom)
+                .studentId(studentId)
+                .joinType(JoinType.CLASS_CODE)
+                .status(MemberStatus.ACTIVE)
+                .build();
+
+        memberRepository.save(member);
+        log.info("Student {} joined classroom {} via class code", studentId, classroom.getId());
+        return classroomService.getClassroom(classroom.getId(), studentId);
+    }
+
+
+    @Transactional
+    public ClassroomResponse joinByInvitationToken(String token, Long studentId, String email) {
+        ClassroomInvitation invitation = invitationRepository.findByToken(token)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời"));
+
+        if (!invitation.getEmail().equalsIgnoreCase(email)) {
+            throw new BusinessException("Lời mời không dành cho tài khoản này");
+        }
+
+        if (invitation.getStatus() != InvitationStatus.INVITED) {
+            throw new BusinessException("Lời mời không hợp lệ (trạng thái: " + invitation.getStatus() + ")");
+        }
+
+        Classroom classroom = invitation.getClassroom();
+        validateNotAlreadyMember(classroom.getId(), studentId);
+
+        invitationService.acceptInvitation(invitation.getId(), studentId, email);
+
+        ClassroomMember member = ClassroomMember.builder()
+                .classroom(classroom)
+                .studentId(studentId)
+                .joinType(JoinType.EMAIL_INVITE)
+                .status(MemberStatus.ACTIVE)
+                .build();
+
+        memberRepository.save(member);
+        log.info("Student {} joined classroom {} via email invitation", studentId, classroom.getId());
+        return classroomService.getClassroom(classroom.getId(), studentId);
+    }
+
+
+    @Transactional
+    public ClassroomResponse acceptInvitationFromSystem(Long invitationId, Long studentId, String email) {
+        ClassroomInvitation invitation = invitationRepository.findById(invitationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời"));
+
+        if (!invitation.getEmail().equalsIgnoreCase(email)) {
+            throw new BusinessException("Lời mời không dành cho tài khoản này");
+        }
+
+        Classroom classroom = invitation.getClassroom();
+        validateNotAlreadyMember(classroom.getId(), studentId);
+
+        invitationService.acceptInvitation(invitationId, studentId, email);
+
+        ClassroomMember member = ClassroomMember.builder()
+                .classroom(classroom)
+                .studentId(studentId)
+                .joinType(JoinType.EMAIL_INVITE)
+                .status(MemberStatus.ACTIVE)
+                .build();
+
+        memberRepository.save(member);
+        log.info("Student {} accepted invitation and joined classroom {}", studentId, classroom.getId());
+        return classroomService.getClassroom(classroom.getId(), studentId);
+    }
+
+
+    public List<ClassroomResponse> getMyJoinedClassrooms(Long studentId) {
+        List<ClassroomMember> members = memberRepository
+                .findByStudentIdAndStatusOrderByJoinedAtDesc(studentId, MemberStatus.ACTIVE);
+
+        return members.stream()
+                .map(m -> classroomService.getClassroom(m.getClassroom().getId(), studentId))
+                .collect(Collectors.toList());
+    }
+
+
+    @Transactional
+    public void leaveClassroom(Long classroomId, Long studentId) {
+        ClassroomMember member = memberRepository
+                .findByClassroomIdAndStudentIdAndStatus(classroomId, studentId, MemberStatus.ACTIVE)
+                .orElseThrow(() -> new ResourceNotFoundException("Bạn không phải thành viên của lớp này"));
+
+        member.setStatus(MemberStatus.LEFT);
+        memberRepository.save(member);
+        log.info("Student {} left classroom {}", studentId, classroomId);
+    }
+
+
+    private void validateNotAlreadyMember(Long classroomId, Long studentId) {
+        if (memberRepository.existsByClassroomIdAndStudentIdAndStatus(
+                classroomId, studentId, MemberStatus.ACTIVE)) {
+            throw new BusinessException("Bạn đã là thành viên của lớp này");
+        }
+    }
+}
