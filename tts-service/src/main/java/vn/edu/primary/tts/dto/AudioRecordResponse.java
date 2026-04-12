@@ -16,6 +16,8 @@ public class AudioRecordResponse {
     private String audioUrl;
     private Long userId;
     private String userName;
+    private String audioName;
+    private String subject;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -26,6 +28,8 @@ public class AudioRecordResponse {
                 .audioUrl(record.getAudioUrl())
                 .userId(record.getUserId())
                 .userName(record.getUserName())
+                .audioName(record.getAudioName())
+                .subject(record.getSubject())
                 .createdAt(record.getCreatedAt())
                 .updatedAt(record.getUpdatedAt())
                 .build();

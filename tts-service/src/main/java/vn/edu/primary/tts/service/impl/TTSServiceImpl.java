@@ -79,6 +79,9 @@ public class TTSServiceImpl implements TTSService {
                 .text(request.getText())
                 .audioUrl(request.getAudioUrl())
                 .userId(request.getUserId())
+                .userName(request.getUserName())
+                .audioName(request.getAudioName())
+                .subject(request.getSubject())
                 .build();
 
         AudioRecord saved = audioRecordRepository.save(record);
@@ -94,7 +97,25 @@ public class TTSServiceImpl implements TTSService {
     }
 
     @Override
+    public List<AudioRecordResponse> getAllAudios() {
+        return audioRecordRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(AudioRecordResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public void deleteAudio(Long audioId) {
+        AudioRecord record = audioRecordRepository.findById(audioId).orElse(null);
+        if (record != null) {
+            // Delete from Cloudinary
+            try {
+                deleteFromCloudinary(record.getAudioUrl());
+            } catch (Exception e) {
+                // Log error but continue with DB deletion
+                System.err.println("Failed to delete from Cloudinary: " + e.getMessage());
+            }
+        }
         audioRecordRepository.deleteById(audioId);
     }
 
@@ -114,5 +135,22 @@ public class TTSServiceImpl implements TTSService {
         Map<String, Object> uploadResult = cloudinary.uploader().upload(file, uploadParams);
         
         return (String) uploadResult.get("secure_url");
+    }
+
+    private void deleteFromCloudinary(String audioUrl) throws Exception {
+        if (audioUrl == null || audioUrl.isEmpty()) return;
+
+        // Extract public_id from URL
+        // URL format: https://res.cloudinary.com/{cloud_name}/video/upload/v{timestamp}/{folder}/{public_id}.{format}
+        String[] parts = audioUrl.split("/");
+        if (parts.length < 8) return;
+
+        String publicIdWithFolder = parts[7] + "/" + parts[8].split("\\.")[0];
+
+        Map<String, Object> deleteParams = ObjectUtils.asMap(
+            "resource_type", "video"  // Audio files are treated as video in Cloudinary
+        );
+
+        cloudinary.uploader().destroy(publicIdWithFolder, deleteParams);
     }
 }

@@ -9,5 +9,6 @@ public interface TTSService {
     String convertTextToSpeech(TTSConvertRequest request) throws Exception;
     AudioRecordResponse saveAudio(SaveAudioRequest request) throws Exception;
     List<AudioRecordResponse> getUserAudios(Long userId);
+    List<AudioRecordResponse> getAllAudios();
     void deleteAudio(Long audioId);
 }

@@ -29,6 +29,12 @@ public class AudioRecord {
     @Column
     private String userName;
 
+    @Column(length = 255)
+    private String audioName;
+
+    @Column(length = 255)
+    private String subject;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

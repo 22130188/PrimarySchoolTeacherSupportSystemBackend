@@ -80,6 +80,7 @@ public class ImageServiceImpl implements ImageService {
                 .imageUrl(request.getImageUrl())
                 .userId(request.getUserId())
                 .userName(request.getUserName())
+                .subject(request.getSubject())
                 .build();
 
         ImageRecord saved = imageRecordRepository.save(record);
@@ -95,7 +96,25 @@ public class ImageServiceImpl implements ImageService {
     }
 
     @Override
+    public List<ImageRecordResponse> getAllImages() {
+        return imageRecordRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(ImageRecordResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public void deleteImage(Long imageId) {
+        ImageRecord record = imageRecordRepository.findById(imageId).orElse(null);
+        if (record != null) {
+            // Delete from Cloudinary
+            try {
+                deleteFromCloudinary(record.getImageUrl());
+            } catch (Exception e) {
+                // Log error but continue with DB deletion
+                System.err.println("Failed to delete from Cloudinary: " + e.getMessage());
+            }
+        }
         imageRecordRepository.deleteById(imageId);
     }
 
@@ -115,5 +134,22 @@ public class ImageServiceImpl implements ImageService {
         Map<String, Object> uploadResult = cloudinary.uploader().upload(file, uploadParams);
 
         return (String) uploadResult.get("secure_url");
+    }
+
+    private void deleteFromCloudinary(String imageUrl) throws Exception {
+        if (imageUrl == null || imageUrl.isEmpty()) return;
+
+        // Extract public_id from URL
+        // URL format: https://res.cloudinary.com/{cloud_name}/image/upload/v{timestamp}/{folder}/{public_id}.{format}
+        String[] parts = imageUrl.split("/");
+        if (parts.length < 8) return;
+
+        String publicIdWithFolder = parts[7] + "/" + parts[8].split("\\.")[0];
+
+        Map<String, Object> deleteParams = ObjectUtils.asMap(
+            "resource_type", "image"
+        );
+
+        cloudinary.uploader().destroy(publicIdWithFolder, deleteParams);
     }
 }

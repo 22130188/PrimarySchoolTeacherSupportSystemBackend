@@ -8,5 +8,6 @@ import java.util.List;
 @Repository
 public interface AudioRecordRepository extends JpaRepository<AudioRecord, Long> {
     List<AudioRecord> findByUserIdOrderByCreatedAtDesc(Long userId);
+    List<AudioRecord> findAllByOrderByCreatedAtDesc();
     void deleteByUserId(Long userId);
 }

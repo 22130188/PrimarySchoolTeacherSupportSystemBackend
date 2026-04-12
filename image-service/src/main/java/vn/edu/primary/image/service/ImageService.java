@@ -9,5 +9,6 @@ public interface ImageService {
     String generateImage(ImageGenerateRequest request) throws Exception;
     ImageRecordResponse saveImage(SaveImageRequest request) throws Exception;
     List<ImageRecordResponse> getUserImages(Long userId);
+    List<ImageRecordResponse> getAllImages();
     void deleteImage(Long imageId);
 }

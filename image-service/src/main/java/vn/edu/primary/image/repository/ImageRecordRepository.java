@@ -9,4 +9,5 @@ import java.util.List;
 public interface ImageRecordRepository extends JpaRepository<ImageRecord, Long> {
 
     List<ImageRecord> findByUserIdOrderByCreatedAtDesc(Long userId);
+    List<ImageRecord> findAllByOrderByCreatedAtDesc();
 }

@@ -21,4 +21,5 @@ public class SaveImageRequest {
     private Long userId;
 
     private String userName;
+    private String subject;
 }

@@ -60,6 +60,17 @@ public class TTSController {
                     .body(ApiResponse.error("Lỗi lấy danh sách: " + e.getMessage()));
         }
     }
+
+    @GetMapping("/audios")
+    public ResponseEntity<?> getAllAudios() {
+        try {
+            List<AudioRecordResponse> audios = ttsService.getAllAudios();
+            return ResponseEntity.ok(ApiResponse.success("Lấy danh sách thành công", audios));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Lỗi lấy danh sách: " + e.getMessage()));
+        }
+    }
     @DeleteMapping("/audios/{audioId}")
     public ResponseEntity<?> deleteAudio(@PathVariable Long audioId) {
         try {

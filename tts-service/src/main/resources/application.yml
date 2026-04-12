@@ -39,7 +39,7 @@ jwt:
 # Python TTS API
 python:
   tts:
-    api-url: http://localhost:8000/api
+    api-url: http://localhost:8001/api
     timeout: 30000
 
 # Cloudinary Configuration (set via environment variables in production)
