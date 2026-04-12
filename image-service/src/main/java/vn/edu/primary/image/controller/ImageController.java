@@ -64,6 +64,17 @@ public class ImageController {
         }
     }
 
+    @GetMapping("/images")
+    public ResponseEntity<?> getAllImages() {
+        try {
+            List<ImageRecordResponse> images = imageService.getAllImages();
+            return ResponseEntity.ok(ApiResponse.success("Lấy danh sách thành công", images));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Lỗi lấy danh sách: " + e.getMessage()));
+        }
+    }
+
     @DeleteMapping("/images/{imageId}")
     public ResponseEntity<?> deleteImage(@PathVariable Long imageId) {
         try {

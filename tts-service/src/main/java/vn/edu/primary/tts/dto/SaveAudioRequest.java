@@ -18,4 +18,8 @@ public class SaveAudioRequest {
 
     @NotNull(message = "User ID không được null")
     private Long userId;
+
+    private String userName;
+    private String audioName;
+    private String subject;
 }

@@ -17,6 +17,7 @@ public class ImageRecordResponse {
     private String imageUrl;
     private Long userId;
     private String userName;
+    private String subject;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -27,6 +28,7 @@ public class ImageRecordResponse {
                 .imageUrl(entity.getImageUrl())
                 .userId(entity.getUserId())
                 .userName(entity.getUserName())
+                .subject(entity.getSubject())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
