@@ -39,6 +39,10 @@ spring:
           predicates:
             - Path=/api/auth/hello
 
+        - id: tts-service
+          uri: lb://tts-service
+          predicates:
+            - Path=/api/tts/**
         - id: classroom-service
           uri: lb://classroom-service
           predicates:
