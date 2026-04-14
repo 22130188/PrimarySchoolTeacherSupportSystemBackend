@@ -46,6 +46,16 @@ public class ClassroomController {
         return ResponseEntity.ok(classroomService.getClassroom(id, userId));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<ClassroomResponse> updateClassroom(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateClassroomRequest request) {
+        authHelper.validateTeacherOrAdmin(authorization);
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(classroomService.updateClassroom(id, request, userId));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteClassroom(
             @RequestHeader("Authorization") String authorization,

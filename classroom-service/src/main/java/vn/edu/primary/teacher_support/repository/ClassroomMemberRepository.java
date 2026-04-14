@@ -20,4 +20,8 @@ public interface ClassroomMemberRepository extends JpaRepository<ClassroomMember
     Optional<ClassroomMember> findByIdAndClassroomId(Long id, Long classroomId);
 
     Optional<ClassroomMember> findByClassroomIdAndStudentId(Long classroomId, Long studentId);
+
+    long countByStatus(MemberStatus status);
+
+    long countByClassroomIdAndStatus(Long classroomId, MemberStatus status);
 }

@@ -46,7 +46,7 @@ spring:
         - id: classroom-service
           uri: lb://classroom-service
           predicates:
-            - Path=/api/classrooms/**,/api/student/classrooms/**,/api/student/invitations/**,/api/internal/classrooms/**,/api/internal/invitations/**
+            - Path=/api/classrooms/**,/api/admin/classrooms/**,/api/student/classrooms/**,/api/student/invitations/**,/api/internal/classrooms/**,/api/internal/invitations/**
 
 eureka:
   client:

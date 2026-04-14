@@ -19,4 +19,14 @@ public interface ClassroomRepository extends JpaRepository<Classroom, Long> {
     boolean existsByClassCode(String classCode);
 
     boolean existsByInviteLinkToken(String inviteLinkToken);
+
+    List<Classroom> findByIsDeletedFalseOrderByCreatedAtDesc();
+
+    List<Classroom> findAllByOrderByCreatedAtDesc();
+
+    List<Classroom> findTop5ByIsDeletedFalseOrderByCreatedAtDesc();
+
+    long countByIsDeletedFalse();
+
+    long countByIsDeletedTrue();
 }
