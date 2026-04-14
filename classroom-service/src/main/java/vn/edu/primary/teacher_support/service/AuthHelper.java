@@ -32,6 +32,13 @@ public class AuthHelper {
         return jwtService.extractPrimaryRole(token);
     }
 
+    public void validateAdmin(String authorization) {
+        String role = extractRole(authorization);
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            throw new ForbiddenException("Chỉ admin mới có quyền thực hiện");
+        }
+    }
+
     public void validateTeacherOrAdmin(String authorization) {
         String role = extractRole(authorization);
         if (!"TEACHER".equalsIgnoreCase(role) && !"ADMIN".equalsIgnoreCase(role)) {

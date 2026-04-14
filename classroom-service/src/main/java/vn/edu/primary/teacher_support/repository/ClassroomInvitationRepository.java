@@ -43,4 +43,8 @@ public interface ClassroomInvitationRepository extends JpaRepository<ClassroomIn
     List<ClassroomInvitation> findByClassroomIdAndStatuses(
             @Param("classroomId") Long classroomId,
             @Param("statuses") List<InvitationStatus> statuses);
+
+    long countByStatusIn(List<InvitationStatus> statuses);
+
+    long countByClassroomIdAndStatusIn(Long classroomId, List<InvitationStatus> statuses);
 }

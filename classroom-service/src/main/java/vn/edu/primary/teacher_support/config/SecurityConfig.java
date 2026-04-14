@@ -23,6 +23,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/classrooms/**").permitAll()
                 .requestMatchers("/api/student/**").permitAll()
                 .requestMatchers("/api/internal/**").permitAll()
+                .requestMatchers("/api/admin/**").permitAll()
                 .anyRequest().authenticated()
             )
             .httpBasic(httpBasic -> httpBasic.disable())

@@ -17,7 +17,9 @@ import vn.edu.primary.teacher_support.exception.ResourceNotFoundException;
 import vn.edu.primary.teacher_support.repository.ClassroomInvitationRepository;
 import vn.edu.primary.teacher_support.repository.ClassroomMemberRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,14 +39,8 @@ public class MembershipService {
         Classroom classroom = classroomService.findByInviteLinkToken(token);
         validateNotAlreadyMember(classroom.getId(), studentId);
 
-        ClassroomMember member = ClassroomMember.builder()
-                .classroom(classroom)
-                .studentId(studentId)
-                .joinType(JoinType.INVITE_LINK)
-                .status(MemberStatus.ACTIVE)
-                .build();
+        addOrReactivateMember(classroom, studentId, JoinType.INVITE_LINK);
 
-        memberRepository.save(member);
         log.info("Student {} joined classroom {} via invite link", studentId, classroom.getId());
         return classroomService.getClassroom(classroom.getId(), studentId);
     }
@@ -55,14 +51,8 @@ public class MembershipService {
         Classroom classroom = classroomService.findByClassCode(classCode.trim().toUpperCase());
         validateNotAlreadyMember(classroom.getId(), studentId);
 
-        ClassroomMember member = ClassroomMember.builder()
-                .classroom(classroom)
-                .studentId(studentId)
-                .joinType(JoinType.CLASS_CODE)
-                .status(MemberStatus.ACTIVE)
-                .build();
+        addOrReactivateMember(classroom, studentId, JoinType.CLASS_CODE);
 
-        memberRepository.save(member);
         log.info("Student {} joined classroom {} via class code", studentId, classroom.getId());
         return classroomService.getClassroom(classroom.getId(), studentId);
     }
@@ -86,14 +76,8 @@ public class MembershipService {
 
         invitationService.acceptInvitation(invitation.getId(), studentId, email);
 
-        ClassroomMember member = ClassroomMember.builder()
-                .classroom(classroom)
-                .studentId(studentId)
-                .joinType(JoinType.EMAIL_INVITE)
-                .status(MemberStatus.ACTIVE)
-                .build();
+        addOrReactivateMember(classroom, studentId, JoinType.EMAIL_INVITE);
 
-        memberRepository.save(member);
         log.info("Student {} joined classroom {} via email invitation", studentId, classroom.getId());
         return classroomService.getClassroom(classroom.getId(), studentId);
     }
@@ -113,14 +97,8 @@ public class MembershipService {
 
         invitationService.acceptInvitation(invitationId, studentId, email);
 
-        ClassroomMember member = ClassroomMember.builder()
-                .classroom(classroom)
-                .studentId(studentId)
-                .joinType(JoinType.EMAIL_INVITE)
-                .status(MemberStatus.ACTIVE)
-                .build();
+        addOrReactivateMember(classroom, studentId, JoinType.EMAIL_INVITE);
 
-        memberRepository.save(member);
         log.info("Student {} accepted invitation and joined classroom {}", studentId, classroom.getId());
         return classroomService.getClassroom(classroom.getId(), studentId);
     }
@@ -145,6 +123,27 @@ public class MembershipService {
         member.setStatus(MemberStatus.LEFT);
         memberRepository.save(member);
         log.info("Student {} left classroom {}", studentId, classroomId);
+    }
+
+    private void addOrReactivateMember(Classroom classroom, Long studentId, JoinType joinType) {
+        Optional<ClassroomMember> existingMember = memberRepository
+                .findByClassroomIdAndStudentId(classroom.getId(), studentId);
+
+        if (existingMember.isPresent()) {
+            ClassroomMember member = existingMember.get();
+            member.setStatus(MemberStatus.ACTIVE);
+            member.setJoinType(joinType);
+            member.setJoinedAt(LocalDateTime.now());
+            memberRepository.save(member);
+        } else {
+            ClassroomMember member = ClassroomMember.builder()
+                    .classroom(classroom)
+                    .studentId(studentId)
+                    .joinType(joinType)
+                    .status(MemberStatus.ACTIVE)
+                    .build();
+            memberRepository.save(member);
+        }
     }
 
 

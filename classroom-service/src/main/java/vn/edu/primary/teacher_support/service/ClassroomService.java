@@ -67,6 +67,18 @@ public class ClassroomService {
     }
 
     @Transactional
+    public ClassroomResponse updateClassroom(Long classroomId, UpdateClassroomRequest request, Long teacherId) {
+        Classroom classroom = getActiveClassroom(classroomId);
+        validateTeacherOwnership(classroom, teacherId);
+
+        classroom.setName(request.getName().trim());
+        classroom.setDescription(request.getDescription());
+        classroom = classroomRepository.save(classroom);
+
+        return toResponse(classroom);
+    }
+
+    @Transactional
     public void deleteClassroom(Long classroomId, Long teacherId) {
         Classroom classroom = getActiveClassroom(classroomId);
         validateTeacherOwnership(classroom, teacherId);
