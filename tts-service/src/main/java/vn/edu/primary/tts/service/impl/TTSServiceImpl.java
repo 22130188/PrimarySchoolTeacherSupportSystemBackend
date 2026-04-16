@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -89,6 +90,37 @@ public class TTSServiceImpl implements TTSService {
     }
 
     @Override
+    public AudioRecordResponse uploadAndSaveAudio(MultipartFile file, String audioName, String subject, Long userId, String userName) throws Exception {
+        if (file.isEmpty()) {
+            throw new Exception("File is empty");
+        }
+        
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("audio/")) {
+            throw new Exception("File must be an audio file");
+        }
+
+        long maxFileSize = 20 * 1024 * 1024;
+        if (file.getSize() > maxFileSize) {
+            throw new Exception("File size exceeds maximum limit of 20MB");
+        }
+
+        String cloudinaryUrl = uploadAudioToCloudinary(file);
+
+        AudioRecord record = AudioRecord.builder()
+                .text("") // No text for uploaded audio
+                .audioUrl(cloudinaryUrl)
+                .userId(userId)
+                .userName(userName)
+                .audioName(audioName)
+                .subject(subject)
+                .build();
+
+        AudioRecord saved = audioRecordRepository.save(record);
+        return AudioRecordResponse.fromEntity(saved);
+    }
+
+    @Override
     public List<AudioRecordResponse> getUserAudios(Long userId) {
         return audioRecordRepository.findByUserIdOrderByCreatedAtDesc(userId)
                 .stream()
@@ -108,11 +140,9 @@ public class TTSServiceImpl implements TTSService {
     public void deleteAudio(Long audioId) {
         AudioRecord record = audioRecordRepository.findById(audioId).orElse(null);
         if (record != null) {
-            // Delete from Cloudinary
             try {
                 deleteFromCloudinary(record.getAudioUrl());
             } catch (Exception e) {
-                // Log error but continue with DB deletion
                 System.err.println("Failed to delete from Cloudinary: " + e.getMessage());
             }
         }
@@ -137,18 +167,35 @@ public class TTSServiceImpl implements TTSService {
         return (String) uploadResult.get("secure_url");
     }
 
+    private String uploadAudioToCloudinary(MultipartFile file) throws Exception {
+        try {
+            Map<String, Object> uploadParams = ObjectUtils.asMap(
+                "resource_type", "auto",
+                "folder", "audio_uploads",
+                "public_id", "audio_" + System.currentTimeMillis()
+            );
+
+            Map<String, Object> uploadResult = cloudinary.uploader().upload(
+                file.getBytes(),
+                uploadParams
+            );
+            
+            return (String) uploadResult.get("secure_url");
+        } catch (Exception e) {
+            throw new Exception("Failed to upload audio to Cloudinary: " + e.getMessage());
+        }
+    }
+
     private void deleteFromCloudinary(String audioUrl) throws Exception {
         if (audioUrl == null || audioUrl.isEmpty()) return;
 
-        // Extract public_id from URL
-        // URL format: https://res.cloudinary.com/{cloud_name}/video/upload/v{timestamp}/{folder}/{public_id}.{format}
         String[] parts = audioUrl.split("/");
         if (parts.length < 8) return;
 
         String publicIdWithFolder = parts[7] + "/" + parts[8].split("\\.")[0];
 
         Map<String, Object> deleteParams = ObjectUtils.asMap(
-            "resource_type", "video"  // Audio files are treated as video in Cloudinary
+            "resource_type", "video"  
         );
 
         cloudinary.uploader().destroy(publicIdWithFolder, deleteParams);
