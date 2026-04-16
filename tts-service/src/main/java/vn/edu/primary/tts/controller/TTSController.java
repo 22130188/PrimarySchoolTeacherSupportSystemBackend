@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
@@ -22,6 +23,7 @@ public class TTSController {
 
     @Autowired
     private TTSService ttsService;
+    
     @PostMapping("/convert")
     public ResponseEntity<?> convertTextToSpeech(
             @Valid @RequestBody TTSConvertRequest request,
@@ -39,6 +41,7 @@ public class TTSController {
                     .body(ApiResponse.error("Lỗi chuyển đổi: " + e.getMessage()));
         }
     }
+    
     @PostMapping("/save")
     public ResponseEntity<?> saveAudio(@Valid @RequestBody SaveAudioRequest request) {
         try {
@@ -50,6 +53,24 @@ public class TTSController {
                     .body(ApiResponse.error("Lỗi lưu âm thanh: " + e.getMessage()));
         }
     }
+
+    @PostMapping("/upload")
+    public ResponseEntity<?> uploadAudio(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("audioName") String audioName,
+            @RequestParam("subject") String subject,
+            @RequestParam("userId") Long userId,
+            @RequestParam("userName") String userName) {
+        try {
+            AudioRecordResponse result = ttsService.uploadAndSaveAudio(file, audioName, subject, userId, userName);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.success("Tải lên và lưu âm thanh thành công", result));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Lỗi tải lên âm thanh: " + e.getMessage()));
+        }
+    }
+    
     @GetMapping("/audios/{userId}")
     public ResponseEntity<?> getUserAudios(@PathVariable Long userId) {
         try {
@@ -71,6 +92,7 @@ public class TTSController {
                     .body(ApiResponse.error("Lỗi lấy danh sách: " + e.getMessage()));
         }
     }
+    
     @DeleteMapping("/audios/{audioId}")
     public ResponseEntity<?> deleteAudio(@PathVariable Long audioId) {
         try {
@@ -81,6 +103,7 @@ public class TTSController {
                     .body(ApiResponse.error("Lỗi xóa âm thanh: " + e.getMessage()));
         }
     }
+    
     @GetMapping("/health")
     public ResponseEntity<?> health() {
         return ResponseEntity.ok(ApiResponse.success("TTS Service is running", null));
