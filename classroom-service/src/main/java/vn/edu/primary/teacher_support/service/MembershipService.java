@@ -106,10 +106,19 @@ public class MembershipService {
 
     public List<ClassroomResponse> getMyJoinedClassrooms(Long studentId) {
         List<ClassroomMember> members = memberRepository
-                .findByStudentIdAndStatusOrderByJoinedAtDesc(studentId, MemberStatus.ACTIVE);
+                .findByStudentIdAndStatusAndClassroomIsDeletedFalseOrderByJoinedAtDesc(studentId, MemberStatus.ACTIVE);
 
         return members.stream()
-                .map(m -> classroomService.getClassroom(m.getClassroom().getId(), studentId))
+                .map(member -> {
+                    try {
+                        return classroomService.getClassroom(member.getClassroom().getId(), studentId);
+                    } catch (ResourceNotFoundException ex) {
+                        log.warn("Skipping stale classroom membership {} for student {}: {}",
+                                member.getId(), studentId, ex.getMessage());
+                        return null;
+                    }
+                })
+                .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
