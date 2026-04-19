@@ -1,0 +1,45 @@
+package vn.edu.primary.speechrecognition.controller;
+
+import vn.edu.primary.speechrecognition.dto.ApiResponse;
+import vn.edu.primary.speechrecognition.service.PronunciationService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
+import java.util.HashMap;
+
+@RestController
+@RequestMapping("")
+@CrossOrigin("*")
+public class PronunciationController {
+
+    @Autowired
+    private PronunciationService pronunciationService;
+
+    @PostMapping("/check")
+    public ResponseEntity<?> checkPronunciation(
+            @RequestParam("target_text") String targetText,
+            @RequestParam("audio_file") MultipartFile audioFile) {
+        try {
+            Map<String, Object> result = pronunciationService.checkPronunciation(targetText, audioFile);
+            return ResponseEntity.ok(ApiResponse.success("Kiểm tra phát âm thành công", result));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Invalid input: " + e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error checking pronunciation: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/health")
+    public ResponseEntity<?> healthCheck() {
+        Map<String, String> response = new HashMap<>();
+        response.put("status", "UP");
+        response.put("service", "speech-recognition-service");
+        return ResponseEntity.ok(response);
+    }
+}
