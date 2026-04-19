@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: speech-recognition-service
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+server:
+  port: 8086
+  servlet:
+    context-path: /api/pronunciation
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+# Python API configuration
+python:
+  api:
+    url: http://localhost:8001
+    timeout: 30000
+
+# JWT Configuration (if needed)
+jwt:
+  secret-key: your_super_secret_key_change_in_production_very_long_string
+  expiration: 86400000  # 24 hours
+
+logging:
+  level:
+    vn.edu.primary.speechrecognition: DEBUG
+    org.springframework.web: DEBUG

@@ -12,7 +12,13 @@ import com.cloudinary.utils.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
@@ -195,7 +201,7 @@ public class TTSServiceImpl implements TTSService {
         String publicIdWithFolder = parts[7] + "/" + parts[8].split("\\.")[0];
 
         Map<String, Object> deleteParams = ObjectUtils.asMap(
-            "resource_type", "video"  
+            "resource_type", "video"
         );
 
         cloudinary.uploader().destroy(publicIdWithFolder, deleteParams);

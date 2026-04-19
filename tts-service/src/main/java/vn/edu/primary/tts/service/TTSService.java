@@ -5,6 +5,7 @@ import vn.edu.primary.tts.dto.SaveAudioRequest;
 import vn.edu.primary.tts.dto.AudioRecordResponse;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
+import java.util.Map;
 
 public interface TTSService {
     String convertTextToSpeech(TTSConvertRequest request) throws Exception;

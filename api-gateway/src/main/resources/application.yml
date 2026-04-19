@@ -42,7 +42,13 @@ spring:
         - id: tts-service
           uri: lb://tts-service
           predicates:
-            - Path=/api/tts/**
+            - Path=/api/tts/convert,/api/tts/save,/api/tts/upload,/api/tts/audios/**,/api/tts/health
+
+        - id: speech-recognition-service
+          uri: lb://speech-recognition-service
+          predicates:
+            - Path=/api/pronunciation/**
+
         - id: classroom-service
           uri: lb://classroom-service
           predicates:
