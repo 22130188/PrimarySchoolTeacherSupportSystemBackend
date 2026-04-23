@@ -24,6 +24,7 @@
         <module>auth-service</module>
         <module>user-service</module>
         <module>tts-service</module>
+        <module>test-service</module>
         <module>speech-recognition-service</module>
         <module>image-service</module>
         <module>classroom-service</module>

@@ -1,0 +1,15 @@
+package vn.edu.primary.test.service;
+
+import vn.edu.primary.test.dto.CreateTestRequest;
+import vn.edu.primary.test.dto.TestResponse;
+
+import java.util.List;
+
+public interface TestService {
+    TestResponse createTest(CreateTestRequest request, Long userId);
+    TestResponse getTestById(Long testId, Long userId);
+    List<TestResponse> getAllTests(Long userId);
+    TestResponse updateTest(Long testId, CreateTestRequest request, Long userId);
+    void deleteTest(Long testId, Long userId);
+    byte[] generateDocx(Long testId, Long userId);
+}
