@@ -1,6 +1,6 @@
 spring:
   application:
-    name: tts-service
+    name: test-service
   jpa:
     hibernate:
       ddl-auto: update
@@ -10,7 +10,7 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.MySQL8Dialect
   datasource:
-    url: jdbc:mysql://localhost:3306/tts_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/test_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: root
     password: ""
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -20,9 +20,10 @@ spring:
       max-request-size: 100MB
 
 server:
-  port: 8084
-  servlet:
-    context-path: /api/tts
+#  port: 8087
+  port: 8088
+  # servlet:
+  #   context-path: /api/tests  # Đã bỏ vì trùng với @RequestMapping
 
 eureka:
   client:
@@ -37,15 +38,14 @@ jwt:
   secret-key: your_super_secret_key_change_in_production_very_long_string
   expiration: 86400000  # 24 hours
 
-# Python TTS API
+# Python API for DOCX generation
 python:
-  tts:
-    api-url: http://localhost:8001/api
-    timeout: 30000
+  api:
+    url: http://localhost:8001
 
 # Cloudinary Configuration (set via environment variables in production)
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME:dlyhvdonu}
   api-key: ${CLOUDINARY_API_KEY:358137225132925}
   api-secret: ${CLOUDINARY_API_SECRET:bSvXNjEDBhwnVsvS5FEFrRg7s18}
-  folder: tts-audios
+  folder: test-files

@@ -44,6 +44,13 @@ spring:
           predicates:
             - Path=/api/tts/convert,/api/tts/save,/api/tts/upload,/api/tts/audios/**,/api/tts/health
 
+        - id: test-service
+#          uri: http://localhost:8087
+          uri: http://localhost:8088
+
+          predicates:
+            - Path=/api/tests/**
+
         - id: speech-recognition-service
           uri: lb://speech-recognition-service
           predicates:
