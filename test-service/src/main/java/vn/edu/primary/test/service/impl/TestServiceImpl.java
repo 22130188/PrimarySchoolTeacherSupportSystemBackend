@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+import vn.edu.primary.test.dto.AnswerDTO;
 import vn.edu.primary.test.dto.CreateTestRequest;
 import vn.edu.primary.test.dto.QuestionDTO;
 import vn.edu.primary.test.dto.TestResponse;
@@ -230,6 +231,17 @@ public class TestServiceImpl implements TestService {
     }
 
     private QuestionDTO convertQuestionToDTO(Question question) {
+        // Parse answers from JSON
+        List<AnswerDTO> answers = null;
+        if (question.getAnswersJson() != null && !question.getAnswersJson().isEmpty()) {
+            try {
+                answers = objectMapper.readValue(question.getAnswersJson(), 
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, AnswerDTO.class));
+            } catch (Exception e) {
+                log.error("Error parsing answers JSON for question {}: {}", question.getId(), e.getMessage());
+            }
+        }
+        
         return QuestionDTO.builder()
                 .id(question.getId())
                 .type(question.getType().name())  // Convert enum to String for API
@@ -237,6 +249,7 @@ public class TestServiceImpl implements TestService {
                 .points(question.getPoints())
                 .title(question.getTitle())
                 .numberQuestions(question.getNumberQuestions())
+                .answers(answers)
                 .audioUrl(question.getAudioUrl())
                 .transcript(question.getTranscript())
                 .orderIndex(question.getOrderIndex())
@@ -259,6 +272,7 @@ public class TestServiceImpl implements TestService {
                 .id(test.getId())
                 .name(test.getName())
                 .subject(test.getSubject())
+                .grade(test.getGrade())
                 .duration(test.getDuration())
                 .createdBy(test.getCreatedBy())
                 .createdAt(test.getCreatedAt())
