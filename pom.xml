@@ -28,6 +28,7 @@
         <module>speech-recognition-service</module>
         <module>image-service</module>
         <module>classroom-service</module>
+        <module>lesson-service</module>
     </modules>
 
     <properties>
