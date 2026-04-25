@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 public class DraftResponse {
     private Long id;
     private String title;
+    private String subject;
+    private String grade;
     private String type;
     private String canvasJson;
     private LocalDateTime createdAt;

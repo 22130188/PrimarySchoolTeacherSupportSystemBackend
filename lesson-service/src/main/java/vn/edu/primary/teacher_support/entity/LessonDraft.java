@@ -20,6 +20,12 @@ public class LessonDraft {
     private String title;
 
     @Column(nullable = false)
+    private String subject;
+
+    @Column(nullable = false)
+    private String grade;
+
+    @Column(nullable = false)
     private String type;
 
     @Lob
