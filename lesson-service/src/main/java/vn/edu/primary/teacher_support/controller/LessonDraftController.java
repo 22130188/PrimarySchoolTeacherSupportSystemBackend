@@ -36,6 +36,16 @@ public class LessonDraftController {
         return ResponseEntity.ok(draftService.getDrafts(userId));
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<List<DraftResponse>> searchDrafts(
+            @RequestHeader("Authorization") String authorization,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String subject,
+            @RequestParam(required = false) String grade) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(draftService.searchDrafts(userId, title, subject, grade));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<DraftResponse> getDraft(
             @RequestHeader("Authorization") String authorization,

@@ -22,12 +22,16 @@ public class LessonDraftService {
             draft = draftRepository.findByIdAndUserId(request.getDraftId(), userId)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bản nháp"));
             draft.setTitle(request.getTitle());
+            draft.setSubject(request.getSubject());
+            draft.setGrade(request.getGrade());
             draft.setType(request.getType());
             draft.setCanvasJson(request.getCanvasJson());
         } else {
             draft = LessonDraft.builder()
                     .userId(userId)
                     .title(request.getTitle())
+                    .subject(request.getSubject())
+                    .grade(request.getGrade())
                     .type(request.getType())
                     .canvasJson(request.getCanvasJson())
                     .build();
@@ -38,6 +42,12 @@ public class LessonDraftService {
 
     public List<DraftResponse> getDrafts(Long userId) {
         return draftRepository.findByUserIdOrderByUpdatedAtDesc(userId).stream()
+                .map(this::toSummaryResponse)
+                .toList();
+    }
+
+    public List<DraftResponse> searchDrafts(Long userId, String title, String subject, String grade) {
+        return draftRepository.searchDrafts(userId, title, subject, grade).stream()
                 .map(this::toSummaryResponse)
                 .toList();
     }
@@ -58,6 +68,8 @@ public class LessonDraftService {
         return DraftResponse.builder()
                 .id(draft.getId())
                 .title(draft.getTitle())
+                .subject(draft.getSubject())
+                .grade(draft.getGrade())
                 .type(draft.getType())
                 .canvasJson(draft.getCanvasJson())
                 .createdAt(draft.getCreatedAt())
@@ -69,6 +81,8 @@ public class LessonDraftService {
         return DraftResponse.builder()
                 .id(draft.getId())
                 .title(draft.getTitle())
+                .subject(draft.getSubject())
+                .grade(draft.getGrade())
                 .type(draft.getType())
                 .createdAt(draft.getCreatedAt())
                 .updatedAt(draft.getUpdatedAt())

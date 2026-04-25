@@ -9,6 +9,12 @@ public class SaveDraftRequest {
     @NotBlank(message = "Tiêu đề không được để trống")
     private String title;
 
+    @NotBlank(message = "Môn học không được để trống")
+    private String subject;
+
+    @NotBlank(message = "Lớp không được để trống")
+    private String grade;
+
     @NotBlank(message = "Loại bài giảng không được để trống")
     private String type;
 
