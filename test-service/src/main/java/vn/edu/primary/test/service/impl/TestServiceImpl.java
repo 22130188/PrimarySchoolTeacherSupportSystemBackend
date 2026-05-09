@@ -37,10 +37,9 @@ public class TestServiceImpl implements TestService {
 
     @Override
     @Transactional
-    public TestResponse createTest(CreateTestRequest request, Long userId) {
-        log.info("Creating test: {} for user: {}", request.getName(), userId);
+    public TestResponse createTest(CreateTestRequest request, Long userId, String userName) {
+        log.info("Creating test: {} for user: {} ({})", request.getName(), userId, userName);
 
-        // Validate and convert points to integer
         Integer totalPoints = request.getQuestions().stream()
                 .mapToInt(q -> {
                     if (q.getPoints() == null) return 0;
@@ -52,7 +51,6 @@ public class TestServiceImpl implements TestService {
                 })
                 .sum();
 
-        // Tạo Test entity
         Test test = Test.builder()
                 .name(request.getName())
                 .subject(request.getSubject())
@@ -60,6 +58,7 @@ public class TestServiceImpl implements TestService {
                 .duration(request.getDuration())
                 .description(request.getDescription())
                 .createdBy(userId)
+                .createdByName(userName)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .status(TestStatus.DRAFT)
@@ -70,7 +69,6 @@ public class TestServiceImpl implements TestService {
         Test savedTest = testRepository.save(test);
         log.info("Test created with id: {}", savedTest.getId());
 
-        // Lưu các câu hỏi
         List<Question> questions = request.getQuestions().stream()
                 .map((q) -> Question.builder()
                         .test(savedTest)
@@ -123,6 +121,23 @@ public class TestServiceImpl implements TestService {
     }
 
     @Override
+    public List<TestResponse> getAllTestsForAdmin() {
+        log.info("Getting all tests for admin");
+        List<Test> tests = testRepository.findAll();
+
+        return tests.stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt())) // Sort by createdAt desc
+                .map(test -> {
+                    List<Question> questions = questionRepository.findByTestIdOrderByOrderIndexAsc(test.getId());
+                    List<QuestionDTO> questionDTOs = questions.stream()
+                            .map(this::convertQuestionToDTO)
+                            .collect(Collectors.toList());
+                    return convertToResponse(test, questionDTOs);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
     @Transactional
     public TestResponse updateTest(Long testId, CreateTestRequest request, Long userId) {
         log.info("Updating test: {} for user: {}", testId, userId);
@@ -136,7 +151,6 @@ public class TestServiceImpl implements TestService {
         test.setDescription(request.getDescription());
         test.setUpdatedAt(LocalDateTime.now());
 
-        // Cập nhật tổng điểm
         Integer totalPoints = request.getQuestions().stream()
                 .mapToInt(q -> convertToInteger(q.getPoints()))
                 .sum();
@@ -145,7 +159,6 @@ public class TestServiceImpl implements TestService {
 
         Test updatedTest = testRepository.save(test);
 
-        // Xóa câu hỏi cũ và lưu mới
         questionRepository.deleteAll(questionRepository.findByTestIdOrderByOrderIndexAsc(testId));
 
         List<Question> questions = request.getQuestions().stream()
@@ -175,7 +188,17 @@ public class TestServiceImpl implements TestService {
         Test test = testRepository.findByIdAndCreatedBy(testId, userId)
                 .orElseThrow(() -> new RuntimeException("Test not found or access denied"));
 
-        // Xóa câu hỏi liên quan
+        questionRepository.deleteAll(questionRepository.findByTestIdOrderByOrderIndexAsc(testId));
+        testRepository.delete(test);
+    }
+
+    @Override
+    @Transactional
+    public void deleteTestForAdmin(Long testId) {
+        log.info("Deleting test for admin: {}", testId);
+        Test test = testRepository.findById(testId)
+                .orElseThrow(() -> new RuntimeException("Test not found"));
+
         questionRepository.deleteAll(questionRepository.findByTestIdOrderByOrderIndexAsc(testId));
         testRepository.delete(test);
     }
@@ -183,17 +206,15 @@ public class TestServiceImpl implements TestService {
     @Override
     public byte[] generateDocx(Long testId, Long userId) {
         log.info("Generating DOCX for test: {} for user: {}", testId, userId);
-        Test test = testRepository.findByIdAndCreatedBy(testId, userId)
-                .orElseThrow(() -> new RuntimeException("Test not found or access denied"));
+        Test test = testRepository.findById(testId)
+                .orElseThrow(() -> new RuntimeException("Test not found"));
 
         List<Question> questions = questionRepository.findByTestIdOrderByOrderIndexAsc(testId);
 
         try {
-            // Gọi Python API để tạo DOCX
             String pythonEndpoint = pythonApiUrl + "/api/docx/generate-test";
             log.info("Calling Python API: {}", pythonEndpoint);
 
-            // Tạo request body
             CreateTestRequest testRequest = CreateTestRequest.builder()
                     .name(test.getName())
                     .subject(test.getSubject())
@@ -204,7 +225,6 @@ public class TestServiceImpl implements TestService {
                             .collect(Collectors.toList()))
                     .build();
 
-            // Gọi Python API
             byte[] docxBytes = restTemplate.postForObject(
                     pythonEndpoint,
                     testRequest,
@@ -219,7 +239,6 @@ public class TestServiceImpl implements TestService {
         }
     }
 
-    // Helper methods
     private String convertAnswersToJson(Object answers) {
         try {
             if (answers == null) return null;
@@ -231,7 +250,6 @@ public class TestServiceImpl implements TestService {
     }
 
     private QuestionDTO convertQuestionToDTO(Question question) {
-        // Parse answers from JSON
         List<AnswerDTO> answers = null;
         if (question.getAnswersJson() != null && !question.getAnswersJson().isEmpty()) {
             try {
@@ -275,6 +293,7 @@ public class TestServiceImpl implements TestService {
                 .grade(test.getGrade())
                 .duration(test.getDuration())
                 .createdBy(test.getCreatedBy())
+                .createdByName(test.getCreatedByName())
                 .createdAt(test.getCreatedAt())
                 .updatedAt(test.getUpdatedAt())
                 .docxFileUrl(test.getDocxFileUrl())
@@ -286,7 +305,6 @@ public class TestServiceImpl implements TestService {
                 .build();
     }
     
-    // Helper method to convert QuestionDTO.type to QuestionType enum
     private vn.edu.primary.test.entity.QuestionType convertToQuestionType(QuestionDTO q) {
         if (q.getType() == null) {
             return vn.edu.primary.test.entity.QuestionType.MULTIPLE_CHOICE;
@@ -305,7 +323,6 @@ public class TestServiceImpl implements TestService {
         return vn.edu.primary.test.entity.QuestionType.MULTIPLE_CHOICE;
     }
     
-    // Helper method to convert various types to Integer
     private Integer convertToInteger(Object value) {
         if (value == null) return 0;
         if (value instanceof Integer) return (Integer) value;

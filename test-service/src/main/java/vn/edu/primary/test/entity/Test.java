@@ -33,6 +33,9 @@ public class Test {
     private Long createdBy; 
 
     @Column(nullable = false)
+    private String createdByName;
+
+    @Column(nullable = false)
     private LocalDateTime createdAt;
 
     @Column(nullable = false)

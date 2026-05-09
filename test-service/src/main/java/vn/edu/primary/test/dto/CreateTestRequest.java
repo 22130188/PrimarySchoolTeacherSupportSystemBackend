@@ -16,5 +16,7 @@ public class CreateTestRequest {
     private String grade;
     private Integer duration;
     private String description;
+    private Long userId;
+    private String userName;
     private List<QuestionDTO> questions;
 }

@@ -3,10 +3,13 @@ package vn.edu.primary.test.controller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import vn.edu.primary.test.dto.ApiResponse;
 import vn.edu.primary.test.dto.CreateTestRequest;
@@ -30,14 +33,24 @@ public class TestController {
     @Value("${python.api.url:http://localhost:8001}")
     private String pythonApiUrl;
 
+    @Value("${gateway.api.url:http://localhost:8080/api}")
+    private String gatewayApiUrl;
+
     @PostMapping
     public ResponseEntity<ApiResponse<TestResponse>> createTest(
             @RequestBody CreateTestRequest request,
             @RequestHeader(value = "Authorization", required = false) String token) {
         try {
             log.info("Creating test: {}", request.getName());
-            Long userId = extractUserIdFromToken(token);
-            TestResponse response = testService.createTest(request, userId);
+            Long userId = request.getUserId();
+            String userName = request.getUserName();
+            
+            if (userId == null || userId <= 0 || userName == null || userName.isBlank()) {
+                userId = extractUserIdFromToken(token);
+                userName = extractUsernameFromToken(token);
+            }
+            
+            TestResponse response = testService.createTest(request, userId, userName);
             return ResponseEntity.ok(ApiResponse.success("Test created successfully", response));
         } catch (Exception e) {
             log.error("Error creating test", e);
@@ -56,6 +69,19 @@ public class TestController {
             return ResponseEntity.ok(ApiResponse.success("Tests fetched successfully", tests));
         } catch (Exception e) {
             log.error("Error fetching tests", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error fetching tests: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/admin/all")
+    public ResponseEntity<ApiResponse<List<TestResponse>>> getAllTestsForAdmin() {
+        try {
+            log.info("Fetching all tests for admin");
+            List<TestResponse> tests = testService.getAllTestsForAdmin();
+            return ResponseEntity.ok(ApiResponse.success("Tests fetched successfully", tests));
+        } catch (Exception e) {
+            log.error("Error fetching tests for admin", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error("Error fetching tests: " + e.getMessage()));
         }
@@ -110,6 +136,19 @@ public class TestController {
         }
     }
 
+    @DeleteMapping("/admin/{testId}")
+    public ResponseEntity<ApiResponse<Void>> deleteTestForAdmin(@PathVariable Long testId) {
+        try {
+            log.info("Deleting test for admin: {}", testId);
+            testService.deleteTestForAdmin(testId);
+            return ResponseEntity.ok(ApiResponse.success("Test deleted successfully", null));
+        } catch (Exception e) {
+            log.error("Error deleting test", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error deleting test: " + e.getMessage()));
+        }
+    }
+
     @PostMapping("/download/docx")
     public ResponseEntity<?> downloadTestAsDocx(
             @RequestBody CreateTestRequest request,
@@ -141,10 +180,15 @@ public class TestController {
         try {
             log.info("Downloading test {} as DOCX", testId);
             Long userId = extractUserIdFromToken(token);
+            TestResponse testResponse = testService.getTestById(testId, userId);
             byte[] docxBytes = testService.generateDocx(testId, userId);
             
+            String filename = (testResponse.getName() != null ? 
+                testResponse.getName().replaceAll("[^a-zA-Z0-9.-]", "_") : 
+                "test") + ".docx";
+            
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"test.docx\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                     .header(HttpHeaders.CONTENT_TYPE, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
                     .body(docxBytes);
         } catch (Exception e) {
@@ -156,20 +200,97 @@ public class TestController {
 
     private Long extractUserIdFromToken(String token) {
         try {
-            if (token != null && token.startsWith("Bearer ")) {
-                String jwt = token.substring(7);
-                if (jwtProvider.validateToken(jwt)) {
-                    Long userId = jwtProvider.extractUserId(jwt);
-                    if (userId != null) {
-                        return userId;
-                    }
-                }
-            }
-            log.warn("Token không hợp lệ hoặc null, sử dụng userId mặc định: 1");
-            return 1L;
+            UserInfo userInfo = resolveUserInfo(token);
+            return userInfo.getId();
         } catch (Exception e) {
             log.error("Lỗi khi trích xuất userId từ token: {}", e.getMessage());
             return 1L;
+        }
+    }
+
+    private String extractUsernameFromToken(String token) {
+        try {
+            UserInfo userInfo = resolveUserInfo(token);
+            return userInfo.getUsername();
+        } catch (Exception e) {
+            log.error("Lỗi khi trích xuất username từ token: {}", e.getMessage());
+            return "Unknown";
+        }
+    }
+
+    private UserInfo resolveUserInfo(String token) {
+        if (token != null && token.startsWith("Bearer ")) {
+            UserInfo userInfo = fetchUserInfoFromGateway(token);
+            if (userInfo != null && userInfo.getId() != null && userInfo.getUsername() != null) {
+                return userInfo;
+            }
+
+            String jwt = token.substring(7);
+            try {
+                if (jwtProvider.validateToken(jwt)) {
+                    String username = jwtProvider.extractUsername(jwt);
+                    Long userId = jwtProvider.extractUserId(jwt);
+                    if (username != null && !username.isEmpty() && userId != null) {
+                        return new UserInfo(userId, username);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Không thể validate token bằng JwtProvider local: {}", e.getMessage());
+            }
+        }
+        log.warn("Không lấy được user info, sử dụng userId mặc định: 1 và username mặc định: Unknown");
+        return new UserInfo(1L, "Unknown");
+    }
+
+    private UserInfo fetchUserInfoFromGateway(String authorizationHeader) {
+        try {
+            String url = gatewayApiUrl + "/user/me";
+            HttpHeaders headers = new HttpHeaders();
+            headers.set(HttpHeaders.AUTHORIZATION, authorizationHeader);
+            HttpEntity<Void> request = new HttpEntity<>(headers);
+
+            ResponseEntity<UserInfo> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    request,
+                    UserInfo.class
+            );
+
+            return response.getBody();
+        } catch (HttpClientErrorException e) {
+            log.warn("Không lấy được user info từ gateway: {}", e.getResponseBodyAsString());
+            return null;
+        } catch (Exception e) {
+            log.error("Lỗi khi gọi user/me: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private static class UserInfo {
+        private Long id;
+        private String username;
+
+        public UserInfo() {}
+
+        public UserInfo(Long id, String username) {
+            this.id = id;
+            this.username = username;
+        }
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
         }
     }
 
