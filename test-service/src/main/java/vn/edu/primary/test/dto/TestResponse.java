@@ -19,6 +19,7 @@ public class TestResponse {
     private String grade;
     private Integer duration;
     private Long createdBy;
+    private String createdByName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String docxFileUrl;

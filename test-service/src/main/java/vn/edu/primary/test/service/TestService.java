@@ -6,10 +6,12 @@ import vn.edu.primary.test.dto.TestResponse;
 import java.util.List;
 
 public interface TestService {
-    TestResponse createTest(CreateTestRequest request, Long userId);
+    TestResponse createTest(CreateTestRequest request, Long userId, String userName);
     TestResponse getTestById(Long testId, Long userId);
     List<TestResponse> getAllTests(Long userId);
+    List<TestResponse> getAllTestsForAdmin();
     TestResponse updateTest(Long testId, CreateTestRequest request, Long userId);
     void deleteTest(Long testId, Long userId);
+    void deleteTestForAdmin(Long testId);
     byte[] generateDocx(Long testId, Long userId);
 }

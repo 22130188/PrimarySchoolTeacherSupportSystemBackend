@@ -35,6 +35,7 @@ eureka:
 
 # JWT Configuration
 jwt:
+  secret: your_super_secret_key_change_in_production_very_long_string
   secret-key: your_super_secret_key_change_in_production_very_long_string
   expiration: 86400000  # 24 hours
 
