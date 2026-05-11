@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import vn.edu.primary.teacher_support.dto.AdminDraftResponse;
 import vn.edu.primary.teacher_support.dto.DraftResponse;
 import vn.edu.primary.teacher_support.dto.SaveDraftRequest;
 import vn.edu.primary.teacher_support.service.AuthHelper;
@@ -61,5 +62,21 @@ public class LessonDraftController {
         Long userId = authHelper.extractUserId(authorization);
         draftService.deleteDraft(id, userId);
         return ResponseEntity.ok(Map.of("message", "Đã xóa bản nháp thành công"));
+    }
+
+    @GetMapping("/admin/all")
+    public ResponseEntity<List<AdminDraftResponse>> getAllDraftsForAdmin(
+            @RequestHeader("Authorization") String authorization) {
+        authHelper.validateTeacherOrAdmin(authorization);
+        return ResponseEntity.ok(draftService.getAllDraftsForAdmin());
+    }
+
+    @DeleteMapping("/admin/{id}")
+    public ResponseEntity<Map<String, String>> deleteDraftForAdmin(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long id) {
+        authHelper.validateTeacherOrAdmin(authorization);
+        draftService.deleteDraftForAdmin(id);
+        return ResponseEntity.ok(Map.of("message", "Đã xóa bài giảng thành công"));
     }
 }
