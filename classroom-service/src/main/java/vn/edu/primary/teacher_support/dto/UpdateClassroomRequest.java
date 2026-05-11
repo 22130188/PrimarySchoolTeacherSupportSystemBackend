@@ -12,4 +12,8 @@ public class UpdateClassroomRequest {
     private String name;
 
     private String description;
+
+    private Integer gradeLevel;
+
+    private String subject;
 }

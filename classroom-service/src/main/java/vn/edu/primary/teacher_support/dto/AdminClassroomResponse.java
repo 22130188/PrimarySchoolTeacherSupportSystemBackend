@@ -20,6 +20,8 @@ public class AdminClassroomResponse {
     private String inviteLink;
     private int studentCount;
     private int pendingInvitationCount;
+    private Integer gradeLevel;
+    private String subject;
     private Long createdBy;
     private Boolean isDeleted;
     private LocalDateTime createdAt;
