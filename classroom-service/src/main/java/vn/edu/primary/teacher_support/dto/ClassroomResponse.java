@@ -19,6 +19,8 @@ public class ClassroomResponse {
     private String classCode;
     private String inviteLink;
     private int studentCount;
+    private Integer gradeLevel;
+    private String subject;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

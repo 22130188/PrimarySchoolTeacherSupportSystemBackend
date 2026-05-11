@@ -45,6 +45,8 @@ public class ClassroomService {
         Classroom classroom = Classroom.builder()
                 .name(request.getName())
                 .description(request.getDescription())
+                .gradeLevel(request.getGradeLevel())
+                .subject(request.getSubject())
                 .teacherId(teacherId)
                 .createdBy(teacherId)
                 .classCode(generateUniqueClassCode())
@@ -73,6 +75,8 @@ public class ClassroomService {
 
         classroom.setName(request.getName().trim());
         classroom.setDescription(request.getDescription());
+        classroom.setGradeLevel(request.getGradeLevel());
+        classroom.setSubject(request.getSubject());
         classroom = classroomRepository.save(classroom);
 
         return toResponse(classroom);
@@ -303,6 +307,8 @@ public class ClassroomService {
                 .classCode(classroom.getClassCode())
                 .inviteLink(inviteLink)
                 .studentCount(studentCount)
+                .gradeLevel(classroom.getGradeLevel())
+                .subject(classroom.getSubject())
                 .createdAt(classroom.getCreatedAt())
                 .updatedAt(classroom.getUpdatedAt())
                 .build();

@@ -65,6 +65,8 @@ public class AdminClassroomService {
 
         classroom.setName(request.getName().trim());
         classroom.setDescription(request.getDescription());
+        classroom.setGradeLevel(request.getGradeLevel());
+        classroom.setSubject(request.getSubject());
         classroom = classroomRepository.save(classroom);
 
         log.info("Admin updated classroom {}: name='{}', description='{}'",
@@ -211,6 +213,8 @@ public class AdminClassroomService {
                 .inviteLink(inviteLink)
                 .studentCount(studentCount)
                 .pendingInvitationCount(pendingCount)
+                .gradeLevel(classroom.getGradeLevel())
+                .subject(classroom.getSubject())
                 .createdBy(classroom.getCreatedBy())
                 .isDeleted(classroom.getIsDeleted())
                 .createdAt(classroom.getCreatedAt())

@@ -52,6 +52,12 @@ public class Classroom {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Column(name = "grade_level")
+    private Integer gradeLevel;
+
+    @Column(name = "subject", length = 50)
+    private String subject;
+
     @PreUpdate
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();
