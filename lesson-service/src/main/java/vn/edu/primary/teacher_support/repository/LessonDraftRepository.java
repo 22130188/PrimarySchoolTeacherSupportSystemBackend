@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public interface LessonDraftRepository extends JpaRepository<LessonDraft, Long> {
     List<LessonDraft> findByUserIdOrderByUpdatedAtDesc(Long userId);
+    List<LessonDraft> findAllByOrderByUpdatedAtDesc();
     Optional<LessonDraft> findByIdAndUserId(Long id, Long userId);
 
     @Query("SELECT d FROM LessonDraft d WHERE d.userId = :userId " +

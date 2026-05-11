@@ -28,4 +28,16 @@ public class UserServiceClient {
             return Optional.empty();
         }
     }
+
+    public Optional<UserDto> findById(Long id) {
+        try {
+            ResponseEntity<UserDto> response = restTemplate.getForEntity(
+                    USER_SERVICE_URL + "/api/internal/users/" + id,
+                    UserDto.class);
+            return Optional.ofNullable(response.getBody());
+        } catch (Exception e) {
+            log.warn("Failed to fetch user by id {}: {}", id, e.getMessage());
+            return Optional.empty();
+        }
+    }
 }

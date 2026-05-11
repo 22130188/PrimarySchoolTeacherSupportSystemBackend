@@ -2,6 +2,7 @@ package vn.edu.primary.teacher_support.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import vn.edu.primary.teacher_support.dto.AdminDraftResponse;
 import vn.edu.primary.teacher_support.dto.DraftResponse;
 import vn.edu.primary.teacher_support.dto.SaveDraftRequest;
 import vn.edu.primary.teacher_support.entity.LessonDraft;
@@ -15,6 +16,7 @@ import java.util.List;
 public class LessonDraftService {
 
     private final LessonDraftRepository draftRepository;
+    private final UserServiceClient userServiceClient;
 
     public DraftResponse saveDraft(Long userId, SaveDraftRequest request) {
         LessonDraft draft;
@@ -84,6 +86,34 @@ public class LessonDraftService {
                 .subject(draft.getSubject())
                 .grade(draft.getGrade())
                 .type(draft.getType())
+                .createdAt(draft.getCreatedAt())
+                .updatedAt(draft.getUpdatedAt())
+                .build();
+    }
+
+    public List<AdminDraftResponse> getAllDraftsForAdmin() {
+        return draftRepository.findAllByOrderByUpdatedAtDesc().stream()
+                .map(this::toAdminResponse)
+                .toList();
+    }
+
+    public void deleteDraftForAdmin(Long id) {
+        LessonDraft draft = draftRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài giảng với id: " + id));
+        draftRepository.delete(draft);
+    }
+
+    private AdminDraftResponse toAdminResponse(LessonDraft draft) {
+        String createdByName = userServiceClient.findById(draft.getUserId())
+                .map(u -> u.getFullName() != null ? u.getFullName() : u.getEmail())
+                .orElse("Unknown");
+        return AdminDraftResponse.builder()
+                .id(draft.getId())
+                .title(draft.getTitle())
+                .subject(draft.getSubject())
+                .grade(draft.getGrade())
+                .type(draft.getType())
+                .createdByName(createdByName)
                 .createdAt(draft.getCreatedAt())
                 .updatedAt(draft.getUpdatedAt())
                 .build();
