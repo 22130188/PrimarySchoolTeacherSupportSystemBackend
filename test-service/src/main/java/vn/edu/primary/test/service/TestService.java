@@ -10,6 +10,7 @@ public interface TestService {
     TestResponse getTestById(Long testId, Long userId);
     List<TestResponse> getAllTests(Long userId);
     List<TestResponse> getAllTestsForAdmin();
+    TestResponse getTestByIdForAdmin(Long testId);
     TestResponse updateTest(Long testId, CreateTestRequest request, Long userId);
     void deleteTest(Long testId, Long userId);
     void deleteTestForAdmin(Long testId);

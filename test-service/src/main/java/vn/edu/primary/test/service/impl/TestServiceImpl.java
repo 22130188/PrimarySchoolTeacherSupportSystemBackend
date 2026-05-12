@@ -51,6 +51,7 @@ public class TestServiceImpl implements TestService {
                 })
                 .sum();
 
+        TestStatus testStatus = parseStatus(request.getStatus(), TestStatus.DRAFT);
         Test test = Test.builder()
                 .name(request.getName())
                 .subject(request.getSubject())
@@ -61,7 +62,7 @@ public class TestServiceImpl implements TestService {
                 .createdByName(userName)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
-                .status(TestStatus.DRAFT)
+                .status(testStatus)
                 .totalPoints(totalPoints)
                 .questionCount(request.getQuestions().size())
                 .build();
@@ -95,6 +96,20 @@ public class TestServiceImpl implements TestService {
         log.info("Getting test: {} for user: {}", testId, userId);
         Test test = testRepository.findByIdAndCreatedBy(testId, userId)
                 .orElseThrow(() -> new RuntimeException("Test not found or access denied"));
+
+        List<Question> questions = questionRepository.findByTestIdOrderByOrderIndexAsc(testId);
+        List<QuestionDTO> questionDTOs = questions.stream()
+                .map(this::convertQuestionToDTO)
+                .collect(Collectors.toList());
+
+        return convertToResponse(test, questionDTOs);
+    }
+
+    @Override
+    public TestResponse getTestByIdForAdmin(Long testId) {
+        log.info("Getting test for admin: {}", testId);
+        Test test = testRepository.findById(testId)
+                .orElseThrow(() -> new RuntimeException("Test not found"));
 
         List<Question> questions = questionRepository.findByTestIdOrderByOrderIndexAsc(testId);
         List<QuestionDTO> questionDTOs = questions.stream()
@@ -150,6 +165,9 @@ public class TestServiceImpl implements TestService {
         test.setDuration(request.getDuration());
         test.setDescription(request.getDescription());
         test.setUpdatedAt(LocalDateTime.now());
+        if (request.getStatus() != null) {
+            test.setStatus(parseStatus(request.getStatus(), test.getStatus()));
+        }
 
         Integer totalPoints = request.getQuestions().stream()
                 .mapToInt(q -> convertToInteger(q.getPoints()))
@@ -338,5 +356,18 @@ public class TestServiceImpl implements TestService {
             }
         }
         return 0;
+    }
+
+    private TestStatus parseStatus(String status, TestStatus defaultStatus) {
+        if (status == null || status.isBlank()) {
+            return defaultStatus;
+        }
+
+        try {
+            return TestStatus.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid status '{}', using default {}", status, defaultStatus);
+            return defaultStatus;
+        }
     }
 }

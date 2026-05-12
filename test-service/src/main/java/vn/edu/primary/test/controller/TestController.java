@@ -37,6 +37,9 @@ public class TestController {
     @Value("${gateway.api.url:http://localhost:8080/api}")
     private String gatewayApiUrl;
 
+    @Value("${user.service.url:http://localhost:8082/api}")
+    private String userServiceUrl;
+
     @PostMapping
     public ResponseEntity<ApiResponse<TestResponse>> createTest(
             @RequestBody CreateTestRequest request,
@@ -63,10 +66,21 @@ public class TestController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<TestResponse>>> getAllTests(
             @RequestHeader(value = "Authorization", required = false) String token) {
+        if (token == null || token.trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authorization token is required"));
+        }
         try {
-            log.info("Fetching all tests");
-            List<TestResponse> tests = testService.getAllTestsForAdmin();
+            log.info("Fetching all tests for current user");
+            log.info("Authorization header present, length={}", token.length());
+            Long userId = extractUserIdFromToken(token);
+            log.info("Resolved userId from token: {}", userId);
+            List<TestResponse> tests = testService.getAllTests(userId);
             return ResponseEntity.ok(ApiResponse.success("Tests fetched successfully", tests));
+        } catch (RuntimeException e) {
+            log.error("Authentication error fetching tests", e);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Unauthorized: " + e.getMessage()));
         } catch (Exception e) {
             log.error("Error fetching tests", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -198,53 +212,95 @@ public class TestController {
         }
     }
 
-    private Long extractUserIdFromToken(String token) {
+    @GetMapping("/admin/{testId}/download/docx")
+    public ResponseEntity<?> downloadTestDocxForAdmin(
+            @PathVariable Long testId,
+            @RequestHeader(value = "Authorization", required = false) String token) {
         try {
+            log.info("Downloading test {} as DOCX for admin", testId);
             UserInfo userInfo = resolveUserInfo(token);
-            return userInfo.getId();
+            if ((userInfo.getRoleId() == null || userInfo.getRoleId() != 3)
+                    && (userInfo.getRole() == null || !userInfo.getRole().equalsIgnoreCase("ADMIN"))) {
+                throw new RuntimeException("Access denied: admin role required");
+            }
+
+            TestResponse testResponse = testService.getTestByIdForAdmin(testId);
+            byte[] docxBytes = testService.generateDocx(testId, userInfo.getId());
+
+            String filename = (testResponse.getName() != null ? 
+                testResponse.getName().replaceAll("[^a-zA-Z0-9.-]", "_") : 
+                "test") + ".docx";
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .header(HttpHeaders.CONTENT_TYPE, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                    .body(docxBytes);
         } catch (Exception e) {
-            log.error("Lỗi khi trích xuất userId từ token: {}", e.getMessage());
-            return 1L;
+            log.error("Error downloading test for admin", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error downloading test: " + e.getMessage()));
         }
+    }
+
+    private Long extractUserIdFromToken(String token) {
+        UserInfo userInfo = resolveUserInfo(token);
+        return userInfo.getId();
     }
 
     private String extractUsernameFromToken(String token) {
-        try {
-            UserInfo userInfo = resolveUserInfo(token);
-            return userInfo.getUsername();
-        } catch (Exception e) {
-            log.error("Lỗi khi trích xuất username từ token: {}", e.getMessage());
-            return "Unknown";
-        }
+        UserInfo userInfo = resolveUserInfo(token);
+        return userInfo.getUsername();
     }
 
     private UserInfo resolveUserInfo(String token) {
-        if (token != null && token.startsWith("Bearer ")) {
-            UserInfo userInfo = fetchUserInfoFromGateway(token);
-            if (userInfo != null && userInfo.getId() != null && userInfo.getUsername() != null) {
-                return userInfo;
-            }
-
-            String jwt = token.substring(7);
-            try {
-                if (jwtProvider.validateToken(jwt)) {
-                    String username = jwtProvider.extractUsername(jwt);
-                    Long userId = jwtProvider.extractUserId(jwt);
-                    if (username != null && !username.isEmpty() && userId != null) {
-                        return new UserInfo(userId, username);
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Không thể validate token bằng JwtProvider local: {}", e.getMessage());
-            }
+        if (token == null || !token.startsWith("Bearer ")) {
+            throw new RuntimeException("Authorization header missing or invalid");
         }
-        log.warn("Không lấy được user info, sử dụng userId mặc định: 1 và username mặc định: Unknown");
-        return new UserInfo(1L, "Unknown");
+
+        log.info("Resolving user info from token");
+        UserInfo userInfo = fetchUserInfoFromGateway(token);
+        if (userInfo != null && userInfo.getId() != null && userInfo.getUsername() != null) {
+            log.info("Resolved user info from gateway: id={}, username={}", userInfo.getId(), userInfo.getUsername());
+            return userInfo;
+        }
+
+        log.warn("Gateway user/me resolution failed, falling back to local JWT parsing");
+        String jwt = token.substring(7);
+        if (jwtProvider.validateToken(jwt)) {
+            String username = jwtProvider.extractUsername(jwt);
+            Long userId = jwtProvider.extractUserId(jwt);
+            log.info("Local JWT parse result: username={}, userId={}", username, userId);
+            if (username != null && !username.isEmpty()) {
+                if (userId != null) {
+                    return new UserInfo(userId, username);
+                }
+
+                log.info("JWT token did not contain userId claim, resolving by user service using username");
+                UserInfo resolvedUserInfo = tryFetchUserInfo(userServiceUrl + "/user/me", token);
+                if (resolvedUserInfo != null && resolvedUserInfo.getId() != null && resolvedUserInfo.getUsername() != null) {
+                    return resolvedUserInfo;
+                }
+            }
+        } else {
+            log.warn("Local JWT validation failed");
+        }
+
+        throw new RuntimeException("Unable to resolve user info from token");
     }
 
     private UserInfo fetchUserInfoFromGateway(String authorizationHeader) {
+        UserInfo userInfo = tryFetchUserInfo(gatewayApiUrl + "/user/me", authorizationHeader);
+        if (userInfo != null) {
+            return userInfo;
+        }
+
+        log.warn("Gateway lookup failed, trying direct user-service call");
+        return tryFetchUserInfo(userServiceUrl + "/user/me", authorizationHeader);
+    }
+
+    private UserInfo tryFetchUserInfo(String url, String authorizationHeader) {
         try {
-            String url = gatewayApiUrl + "/user/me";
+            log.info("Fetching user info from: {}", url);
             HttpHeaders headers = new HttpHeaders();
             headers.set(HttpHeaders.AUTHORIZATION, authorizationHeader);
             HttpEntity<Void> request = new HttpEntity<>(headers);
@@ -256,19 +312,46 @@ public class TestController {
                     String.class
             );
 
-            // Parse JSON response
-            ObjectMapper mapper = new ObjectMapper();
-            var jsonNode = mapper.readTree(response.getBody());
-            Long id = jsonNode.get("id").asLong();
-            String username = jsonNode.get("username").asText();
-            Integer roleId = jsonNode.get("roleId").asInt();
+            log.info("User info response status: {}", response.getStatusCode());
+            String body = response.getBody();
+            log.info("Raw user info response body: {}", body);
 
-            return new UserInfo(id, username, roleId);
+            ObjectMapper mapper = new ObjectMapper();
+            var rootNode = mapper.readTree(body);
+            var dataNode = rootNode.has("data") && !rootNode.get("data").isNull()
+                    ? rootNode.get("data")
+                    : rootNode;
+
+            if (dataNode == null || dataNode.isNull() || !dataNode.has("id") || !dataNode.has("username")) {
+                log.warn("User info response missing required fields: {}", body);
+                return null;
+            }
+
+            Long id = dataNode.get("id").asLong();
+            String username = dataNode.get("username").asText();
+            Integer roleId = dataNode.has("roleId") && !dataNode.get("roleId").isNull()
+                    ? dataNode.get("roleId").asInt()
+                    : null;
+            String role = dataNode.has("role") && !dataNode.get("role").isNull()
+                    ? dataNode.get("role").asText()
+                    : null;
+
+            if (roleId == null && role != null) {
+                roleId = switch (role.toUpperCase()) {
+                    case "ADMIN" -> 3;
+                    case "TEACHER" -> 2;
+                    case "STUDENT" -> 1;
+                    default -> null;
+                };
+            }
+
+            log.info("Resolved user info: id={}, username={}, roleId={}, role={}", id, username, roleId, role);
+            return new UserInfo(id, username, roleId, role);
         } catch (HttpClientErrorException e) {
-            log.warn("Không lấy được user info từ gateway: {}", e.getResponseBodyAsString());
+            log.warn("Cannot fetch user info from {}: {}", url, e.getResponseBodyAsString());
             return null;
         } catch (Exception e) {
-            log.error("Lỗi khi gọi user/me: {}", e.getMessage());
+            log.error("Error fetching user info from {}: {}", url, e.getMessage());
             return null;
         }
     }
@@ -277,6 +360,7 @@ public class TestController {
         private Long id;
         private String username;
         private Integer roleId;
+        private String role;
 
         public UserInfo() {}
 
@@ -289,6 +373,13 @@ public class TestController {
             this.id = id;
             this.username = username;
             this.roleId = roleId;
+        }
+
+        public UserInfo(Long id, String username, Integer roleId, String role) {
+            this.id = id;
+            this.username = username;
+            this.roleId = roleId;
+            this.role = role;
         }
 
         public Long getId() {
@@ -313,6 +404,14 @@ public class TestController {
 
         public void setRoleId(Integer roleId) {
             this.roleId = roleId;
+        }
+
+        public String getRole() {
+            return role;
+        }
+
+        public void setRole(String role) {
+            this.role = role;
         }
     }
 

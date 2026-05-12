@@ -35,9 +35,9 @@ eureka:
 
 # JWT Configuration
 jwt:
-  secret: your_super_secret_key_change_in_production_very_long_string
-  secret-key: your_super_secret_key_change_in_production_very_long_string
-  expiration: 86400000  # 24 hours
+  secret: ${JWT_SECRET:your_super_secret_key_change_in_production_very_long_string}
+  secret-key: ${JWT_SECRET:your_super_secret_key_change_in_production_very_long_string}
+  expiration: ${JWT_EXPIRATION_MS:86400000}  # 24 hours
 
 # Python API for DOCX generation
 python:
