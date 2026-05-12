@@ -18,6 +18,7 @@ import vn.edu.primary.test.security.JwtProvider;
 import vn.edu.primary.test.service.TestService;
 
 import java.util.List;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @RestController
 @RequestMapping("/api/tests")
@@ -64,8 +65,7 @@ public class TestController {
             @RequestHeader(value = "Authorization", required = false) String token) {
         try {
             log.info("Fetching all tests");
-            Long userId = extractUserIdFromToken(token);
-            List<TestResponse> tests = testService.getAllTests(userId);
+            List<TestResponse> tests = testService.getAllTestsForAdmin();
             return ResponseEntity.ok(ApiResponse.success("Tests fetched successfully", tests));
         } catch (Exception e) {
             log.error("Error fetching tests", e);
@@ -249,14 +249,21 @@ public class TestController {
             headers.set(HttpHeaders.AUTHORIZATION, authorizationHeader);
             HttpEntity<Void> request = new HttpEntity<>(headers);
 
-            ResponseEntity<UserInfo> response = restTemplate.exchange(
+            ResponseEntity<String> response = restTemplate.exchange(
                     url,
                     HttpMethod.GET,
                     request,
-                    UserInfo.class
+                    String.class
             );
 
-            return response.getBody();
+            // Parse JSON response
+            ObjectMapper mapper = new ObjectMapper();
+            var jsonNode = mapper.readTree(response.getBody());
+            Long id = jsonNode.get("id").asLong();
+            String username = jsonNode.get("username").asText();
+            Integer roleId = jsonNode.get("roleId").asInt();
+
+            return new UserInfo(id, username, roleId);
         } catch (HttpClientErrorException e) {
             log.warn("Không lấy được user info từ gateway: {}", e.getResponseBodyAsString());
             return null;
@@ -269,12 +276,19 @@ public class TestController {
     private static class UserInfo {
         private Long id;
         private String username;
+        private Integer roleId;
 
         public UserInfo() {}
 
         public UserInfo(Long id, String username) {
             this.id = id;
             this.username = username;
+        }
+
+        public UserInfo(Long id, String username, Integer roleId) {
+            this.id = id;
+            this.username = username;
+            this.roleId = roleId;
         }
 
         public Long getId() {
@@ -291,6 +305,14 @@ public class TestController {
 
         public void setUsername(String username) {
             this.username = username;
+        }
+
+        public Integer getRoleId() {
+            return roleId;
+        }
+
+        public void setRoleId(Integer roleId) {
+            this.roleId = roleId;
         }
     }
 
