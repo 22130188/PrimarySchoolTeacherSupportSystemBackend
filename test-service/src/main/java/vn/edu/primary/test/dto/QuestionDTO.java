@@ -30,6 +30,9 @@ public class QuestionDTO {
     @JsonProperty("audioUrl")
     private String audioUrl;
     
+    @JsonProperty("imageUrl")
+    private String imageUrl;
+    
     @JsonProperty("transcript")
     private String transcript;
     

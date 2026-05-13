@@ -47,6 +47,9 @@ public class Question {
     private String audioUrl; // URL file ghi âm (cho audio)
 
     @Column
+    private String imageUrl; // URL ảnh câu hỏi
+
+    @Column
     private String transcript; // Phiên âm từ ghi âm
 
     @Column

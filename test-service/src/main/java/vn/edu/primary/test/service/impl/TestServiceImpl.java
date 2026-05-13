@@ -80,6 +80,7 @@ public class TestServiceImpl implements TestService {
                         .numberQuestions(convertToInteger(q.getNumberQuestions()))
                         .answersJson(convertAnswersToJson(q.getAnswers()))
                         .audioUrl(q.getAudioUrl())
+                        .imageUrl(q.getImageUrl())
                         .transcript(q.getTranscript())
                         .orderIndex(request.getQuestions().indexOf(q))
                         .build())
@@ -189,6 +190,7 @@ public class TestServiceImpl implements TestService {
                         .numberQuestions(convertToInteger(q.getNumberQuestions()))
                         .answersJson(convertAnswersToJson(q.getAnswers()))
                         .audioUrl(q.getAudioUrl())
+                        .imageUrl(q.getImageUrl())
                         .transcript(q.getTranscript())
                         .orderIndex(request.getQuestions().indexOf(q))
                         .build())
@@ -287,6 +289,7 @@ public class TestServiceImpl implements TestService {
                 .numberQuestions(question.getNumberQuestions())
                 .answers(answers)
                 .audioUrl(question.getAudioUrl())
+                .imageUrl(question.getImageUrl())
                 .transcript(question.getTranscript())
                 .orderIndex(question.getOrderIndex())
                 .build();
