@@ -38,6 +38,24 @@ public class QuestionDTO {
     
     private Integer orderIndex;
     
+    @JsonProperty("matchingPairs")
+    private List<MatchingPairDTO> matchingPairs;
+    
+    @JsonProperty("textWithBlanks")
+    private String textWithBlanks;
+    
+    @JsonProperty("blanks")
+    private List<BlankDTO> blanks;
+    
+    @JsonProperty("prompt")
+    private String prompt;
+    
+    @JsonProperty("maxLength")
+    private Integer maxLength;
+    
+    @JsonProperty("rubric")
+    private String rubric;
+    
     public QuestionType getQuestionType() {
         if (type == null) {
             return QuestionType.MULTIPLE_CHOICE;

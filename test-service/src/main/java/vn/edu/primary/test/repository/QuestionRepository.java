@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface QuestionRepository extends JpaRepository<Question, Long> {
     List<Question> findByTestIdOrderByOrderIndexAsc(Long testId);
+    List<Question> findByTest_CreatedByOrderByIdDesc(Long userId);
 }

@@ -1,6 +1,7 @@
 package vn.edu.primary.test.service;
 
 import vn.edu.primary.test.dto.CreateTestRequest;
+import vn.edu.primary.test.dto.QuestionDTO;
 import vn.edu.primary.test.dto.TestResponse;
 
 import java.util.List;
@@ -15,4 +16,5 @@ public interface TestService {
     void deleteTest(Long testId, Long userId);
     void deleteTestForAdmin(Long testId);
     byte[] generateDocx(Long testId, Long userId);
+    List<QuestionDTO> getAllQuestionsByUser(Long userId);
 }

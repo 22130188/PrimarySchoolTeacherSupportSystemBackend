@@ -24,34 +24,46 @@ public class Question {
     private Test test;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private QuestionType type; // MULTIPLE_CHOICE, AUDIO
+    @Column(name = "type", nullable = false, length = 50, columnDefinition = "VARCHAR(50)")
+    private QuestionType type; 
 
     @Column(nullable = false)
-    private String content; // Nội dung câu hỏi
+    private String content; 
 
     @Column(nullable = false)
-    private Integer points; // Điểm
+    private Integer points;
 
     @Column
-    private String title; // Tên đề (cho trắc nghiệm)
-
+    private String title; 
     @Column
-    private Integer numberQuestions; // Số câu (cho trắc nghiệm)
+    private Integer numberQuestions; 
 
-    // Dữ liệu JSON cho các loại câu hỏi khác nhau
     @Column(columnDefinition = "JSON")
-    private String answersJson; // JSON array chứa đáp án và đáp án đúng
+    private String answersJson; 
+
+    @Column(name = "matching_pairs_json", columnDefinition = "JSON")
+    private String matchingPairsJson; 
+
+    @Column(name = "text_with_blanks", columnDefinition = "LONGTEXT")
+    private String textWithBlanks; 
+    @Column(name = "blanks_json", columnDefinition = "JSON")
+    private String blanksJson; 
+    @Column(columnDefinition = "TEXT")
+    private String prompt; 
+    @Column(name = "max_length")
+    private Integer maxLength;
 
     @Column
-    private String audioUrl; // URL file ghi âm (cho audio)
+    private String rubric; 
+    @Column
+    private String audioUrl;
 
     @Column
-    private String imageUrl; // URL ảnh câu hỏi
+    private String imageUrl;
 
     @Column
-    private String transcript; // Phiên âm từ ghi âm
+    private String transcript;
 
     @Column
-    private Integer orderIndex; // Thứ tự câu hỏi trong bài kiểm tra
+    private Integer orderIndex;
 }
