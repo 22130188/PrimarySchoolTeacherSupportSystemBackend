@@ -6,6 +6,7 @@ import vn.edu.primary.teacher_support.dto.AdminDraftResponse;
 import vn.edu.primary.teacher_support.dto.DraftResponse;
 import vn.edu.primary.teacher_support.dto.SaveDraftRequest;
 import vn.edu.primary.teacher_support.entity.LessonDraft;
+import vn.edu.primary.teacher_support.entity.enums.LessonDraftStatus;
 import vn.edu.primary.teacher_support.exception.ResourceNotFoundException;
 import vn.edu.primary.teacher_support.repository.LessonDraftRepository;
 
@@ -73,6 +74,7 @@ public class LessonDraftService {
                 .subject(draft.getSubject())
                 .grade(draft.getGrade())
                 .type(draft.getType())
+                .status(draft.getStatus())
                 .canvasJson(draft.getCanvasJson())
                 .createdAt(draft.getCreatedAt())
                 .updatedAt(draft.getUpdatedAt())
@@ -86,6 +88,7 @@ public class LessonDraftService {
                 .subject(draft.getSubject())
                 .grade(draft.getGrade())
                 .type(draft.getType())
+                .status(draft.getStatus())
                 .createdAt(draft.getCreatedAt())
                 .updatedAt(draft.getUpdatedAt())
                 .build();
@@ -113,9 +116,18 @@ public class LessonDraftService {
                 .subject(draft.getSubject())
                 .grade(draft.getGrade())
                 .type(draft.getType())
+                .status(draft.getStatus())
                 .createdByName(createdByName)
                 .createdAt(draft.getCreatedAt())
                 .updatedAt(draft.getUpdatedAt())
                 .build();
+    }
+
+    public DraftResponse updateStatus(Long id, Long userId, LessonDraftStatus status) {
+        LessonDraft draft = draftRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bản nháp với id: " + id));
+        draft.setStatus(status);
+        draft = draftRepository.save(draft);
+        return toSummaryResponse(draft);
     }
 }

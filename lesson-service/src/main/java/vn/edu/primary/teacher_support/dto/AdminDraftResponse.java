@@ -1,6 +1,8 @@
 package vn.edu.primary.teacher_support.dto;
 
 import lombok.*;
+import vn.edu.primary.teacher_support.entity.enums.LessonDraftStatus;
+
 import java.time.LocalDateTime;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -10,6 +12,7 @@ public class AdminDraftResponse {
     private String subject;
     private String grade;
     private String type;
+    private LessonDraftStatus status;
     private String createdByName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
