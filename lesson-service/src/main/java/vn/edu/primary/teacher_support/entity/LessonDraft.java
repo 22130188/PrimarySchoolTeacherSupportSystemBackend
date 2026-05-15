@@ -2,6 +2,8 @@ package vn.edu.primary.teacher_support.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import vn.edu.primary.teacher_support.entity.enums.LessonDraftStatus;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -28,6 +30,11 @@ public class LessonDraft {
     @Column(nullable = false)
     private String type;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "ENUM('DRAFT','PUBLISHED','ARCHIVED') DEFAULT 'DRAFT'")
+    @Builder.Default
+    private LessonDraftStatus status = LessonDraftStatus.DRAFT;
+
     @Lob
     @Column(columnDefinition = "LONGTEXT")
     private String canvasJson;
@@ -42,6 +49,7 @@ public class LessonDraft {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (status == null) status = LessonDraftStatus.DRAFT;
     }
 
     @PreUpdate

@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import vn.edu.primary.teacher_support.dto.AdminDraftResponse;
 import vn.edu.primary.teacher_support.dto.DraftResponse;
 import vn.edu.primary.teacher_support.dto.SaveDraftRequest;
+import vn.edu.primary.teacher_support.dto.UpdateDraftStatusRequest;
 import vn.edu.primary.teacher_support.service.AuthHelper;
 import vn.edu.primary.teacher_support.service.LessonDraftService;
 
@@ -62,6 +63,15 @@ public class LessonDraftController {
         Long userId = authHelper.extractUserId(authorization);
         draftService.deleteDraft(id, userId);
         return ResponseEntity.ok(Map.of("message", "Đã xóa bản nháp thành công"));
+    }
+
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<DraftResponse> updateStatus(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateDraftStatusRequest request) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(draftService.updateStatus(id, userId, request.getStatus()));
     }
 
     @GetMapping("/admin/all")
