@@ -58,6 +58,7 @@ public class TestServiceImpl implements TestService {
                 .name(request.getName())
                 .subject(request.getSubject())
                 .grade(request.getGrade())
+            .lessonContentName(request.getLessonContentName())
                 .duration(request.getDuration())
                 .description(request.getDescription())
                 .createdBy(userId)
@@ -171,6 +172,7 @@ public class TestServiceImpl implements TestService {
         test.setName(request.getName());
         test.setSubject(request.getSubject());
         test.setGrade(request.getGrade());
+        test.setLessonContentName(request.getLessonContentName());
         test.setDuration(request.getDuration());
         test.setDescription(request.getDescription());
         test.setUpdatedAt(LocalDateTime.now());
@@ -252,6 +254,7 @@ public class TestServiceImpl implements TestService {
             CreateTestRequest testRequest = CreateTestRequest.builder()
                     .name(test.getName())
                     .subject(test.getSubject())
+                    .lessonContentName(test.getLessonContentName())
                     .duration(test.getDuration())
                     .description(test.getDescription())
                     .questions(questions.stream()
@@ -360,6 +363,7 @@ public class TestServiceImpl implements TestService {
                 .updatedAt(test.getUpdatedAt())
                 .docxFileUrl(test.getDocxFileUrl())
                 .description(test.getDescription())
+                .lessonContentName(test.getLessonContentName())
                 .totalPoints(test.getTotalPoints())
                 .questionCount(test.getQuestionCount())
                 .status(test.getStatus())
@@ -440,6 +444,14 @@ public class TestServiceImpl implements TestService {
         dto.setImageUrl(question.getImageUrl());
         dto.setTranscript(question.getTranscript());
         
+        // Add test-related information
+        if (question.getTest() != null) {
+            dto.setLessonContentName(question.getTest().getLessonContentName());
+            dto.setSubject(question.getTest().getSubject());
+            dto.setCreatedByName(question.getTest().getCreatedByName());
+            dto.setCreatedBy(question.getTest().getCreatedBy());
+        }
+        
         try {
             if (question.getAnswersJson() != null) {
                 List<AnswerDTO> answers = objectMapper.readValue(
@@ -474,5 +486,42 @@ public class TestServiceImpl implements TestService {
         }
         
         return dto;
+    }
+
+    @Override
+    public List<QuestionDTO> getFilteredQuestions(Long userId, String filterType, String subject, String lessonContent) {
+        log.info("Getting filtered questions for user: {} with filterType: {}, subject: {}, lessonContent: {}", 
+                userId, filterType, subject, lessonContent);
+        
+        List<Question> questions;
+        
+        if ("my-questions".equals(filterType)) {
+            // Câu hỏi của tôi
+            questions = questionRepository.findByTest_CreatedByOrderByIdDesc(userId);
+        } else if ("other-questions".equals(filterType)) {
+            // Câu hỏi của người khác tạo
+            questions = questionRepository.findByTest_CreatedByNotOrderByIdDesc(userId);
+        } else {
+            // Tất cả câu hỏi
+            questions = questionRepository.findAllOrderByIdDesc();
+        }
+        
+        // Apply subject and lesson content filters
+        return questions.stream()
+                .filter(q -> {
+                    if (subject != null && !subject.isEmpty() && q.getTest() != null) {
+                        if (!subject.equalsIgnoreCase(q.getTest().getSubject())) {
+                            return false;
+                        }
+                    }
+                    if (lessonContent != null && !lessonContent.isEmpty() && q.getTest() != null) {
+                        if (!lessonContent.equalsIgnoreCase(q.getTest().getLessonContentName())) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
+                .map(this::convertToQuestionDTO)
+                .collect(Collectors.toList());
     }
 }

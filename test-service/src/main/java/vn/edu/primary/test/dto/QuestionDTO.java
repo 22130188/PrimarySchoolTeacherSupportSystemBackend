@@ -24,6 +24,18 @@ public class QuestionDTO {
     private String title;
     private Integer numberQuestions;
     
+    @JsonProperty("lessonContentName")
+    private String lessonContentName;
+    
+    @JsonProperty("subject")
+    private String subject;
+    
+    @JsonProperty("createdByName")
+    private String createdByName;
+    
+    @JsonProperty("createdBy")
+    private Long createdBy;
+    
     @JsonProperty("answers")
     private List<AnswerDTO> answers;
     

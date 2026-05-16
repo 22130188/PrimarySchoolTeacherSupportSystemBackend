@@ -59,4 +59,7 @@ public class Test {
 
     @Column
     private String cloudinaryPublicId; 
+
+    @Column
+    private String lessonContentName;
 }
