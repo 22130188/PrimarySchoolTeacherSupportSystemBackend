@@ -13,6 +13,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import vn.edu.primary.test.dto.ApiResponse;
 import vn.edu.primary.test.dto.CreateTestRequest;
+import vn.edu.primary.test.dto.QuestionDTO;
 import vn.edu.primary.test.dto.TestResponse;
 import vn.edu.primary.test.security.JwtProvider;
 import vn.edu.primary.test.service.TestService;
@@ -85,6 +86,29 @@ public class TestController {
             log.error("Error fetching tests", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error("Error fetching tests: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/questions/user")
+    public ResponseEntity<ApiResponse<List<QuestionDTO>>> getAllQuestionsByUser(
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        if (token == null || token.trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authorization token is required"));
+        }
+        try {
+            log.info("Fetching all questions for current user");
+            Long userId = extractUserIdFromToken(token);
+            List<QuestionDTO> questions = testService.getAllQuestionsByUser(userId);
+            return ResponseEntity.ok(ApiResponse.success("Questions fetched successfully", questions));
+        } catch (RuntimeException e) {
+            log.error("Authentication error fetching questions", e);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Unauthorized: " + e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error fetching questions", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error fetching questions: " + e.getMessage()));
         }
     }
 

@@ -20,8 +20,8 @@ spring:
       max-request-size: 100MB
 
 server:
-#  port: 8087
-  port: 8088
+  port: 8087
+#  port: 8088
   # servlet:
   #   context-path: /api/tests  # Đã bỏ vì trùng với @RequestMapping
 

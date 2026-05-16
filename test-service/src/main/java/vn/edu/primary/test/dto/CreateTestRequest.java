@@ -19,5 +19,6 @@ public class CreateTestRequest {
     private String status;
     private Long userId;
     private String userName;
+    private Boolean includeAnswers;
     private List<QuestionDTO> questions;
 }

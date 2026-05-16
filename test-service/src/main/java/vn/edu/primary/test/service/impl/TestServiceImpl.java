@@ -7,7 +7,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import vn.edu.primary.test.dto.AnswerDTO;
+import vn.edu.primary.test.dto.BlankDTO;
 import vn.edu.primary.test.dto.CreateTestRequest;
+import vn.edu.primary.test.dto.MatchingPairDTO;
 import vn.edu.primary.test.dto.QuestionDTO;
 import vn.edu.primary.test.dto.TestResponse;
 import vn.edu.primary.test.entity.Question;
@@ -79,7 +81,14 @@ public class TestServiceImpl implements TestService {
                         .title(q.getTitle())
                         .numberQuestions(convertToInteger(q.getNumberQuestions()))
                         .answersJson(convertAnswersToJson(q.getAnswers()))
+                        .matchingPairsJson(convertAnswersToJson(q.getMatchingPairs()))
+                        .textWithBlanks(q.getTextWithBlanks())
+                        .blanksJson(convertAnswersToJson(q.getBlanks()))
+                        .prompt(q.getPrompt())
+                        .maxLength(convertToInteger(q.getMaxLength()))
+                        .rubric(q.getRubric())
                         .audioUrl(q.getAudioUrl())
+                        .imageUrl(q.getImageUrl())
                         .transcript(q.getTranscript())
                         .orderIndex(request.getQuestions().indexOf(q))
                         .build())
@@ -188,7 +197,14 @@ public class TestServiceImpl implements TestService {
                         .title(q.getTitle())
                         .numberQuestions(convertToInteger(q.getNumberQuestions()))
                         .answersJson(convertAnswersToJson(q.getAnswers()))
+                        .matchingPairsJson(convertAnswersToJson(q.getMatchingPairs()))
+                        .textWithBlanks(q.getTextWithBlanks())
+                        .blanksJson(convertAnswersToJson(q.getBlanks()))
+                        .prompt(q.getPrompt())
+                        .maxLength(convertToInteger(q.getMaxLength()))
+                        .rubric(q.getRubric())
                         .audioUrl(q.getAudioUrl())
+                        .imageUrl(q.getImageUrl())
                         .transcript(q.getTranscript())
                         .orderIndex(request.getQuestions().indexOf(q))
                         .build())
@@ -269,24 +285,52 @@ public class TestServiceImpl implements TestService {
 
     private QuestionDTO convertQuestionToDTO(Question question) {
         List<AnswerDTO> answers = null;
+        List<MatchingPairDTO> matchingPairs = null;
+        List<BlankDTO> blanks = null;
+
         if (question.getAnswersJson() != null && !question.getAnswersJson().isEmpty()) {
             try {
-                answers = objectMapper.readValue(question.getAnswersJson(), 
+                answers = objectMapper.readValue(question.getAnswersJson(),
                     objectMapper.getTypeFactory().constructCollectionType(List.class, AnswerDTO.class));
             } catch (Exception e) {
                 log.error("Error parsing answers JSON for question {}: {}", question.getId(), e.getMessage());
             }
         }
+
+        if (question.getMatchingPairsJson() != null && !question.getMatchingPairsJson().isEmpty()) {
+            try {
+                matchingPairs = objectMapper.readValue(question.getMatchingPairsJson(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, MatchingPairDTO.class));
+            } catch (Exception e) {
+                log.error("Error parsing matching pairs JSON for question {}: {}", question.getId(), e.getMessage());
+            }
+        }
+
+        if (question.getBlanksJson() != null && !question.getBlanksJson().isEmpty()) {
+            try {
+                blanks = objectMapper.readValue(question.getBlanksJson(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, BlankDTO.class));
+            } catch (Exception e) {
+                log.error("Error parsing blanks JSON for question {}: {}", question.getId(), e.getMessage());
+            }
+        }
         
         return QuestionDTO.builder()
                 .id(question.getId())
-                .type(question.getType().name())  // Convert enum to String for API
+                .type(question.getType().name())  
                 .content(question.getContent())
                 .points(question.getPoints())
                 .title(question.getTitle())
                 .numberQuestions(question.getNumberQuestions())
                 .answers(answers)
+                .matchingPairs(matchingPairs)
+                .textWithBlanks(question.getTextWithBlanks())
+                .blanks(blanks)
+                .prompt(question.getPrompt())
+                .maxLength(question.getMaxLength())
+                .rubric(question.getRubric())
                 .audioUrl(question.getAudioUrl())
+                .imageUrl(question.getImageUrl())
                 .transcript(question.getTranscript())
                 .orderIndex(question.getOrderIndex())
                 .build();
@@ -324,15 +368,20 @@ public class TestServiceImpl implements TestService {
     }
     
     private vn.edu.primary.test.entity.QuestionType convertToQuestionType(QuestionDTO q) {
-        if (q.getType() == null) {
+        if (q == null || q.getType() == null) {
             return vn.edu.primary.test.entity.QuestionType.MULTIPLE_CHOICE;
         }
         if (q.getType() instanceof vn.edu.primary.test.entity.QuestionType) {
             return (vn.edu.primary.test.entity.QuestionType) q.getType();
         }
         if (q.getType() instanceof String) {
+            String typeString = ((String) q.getType()).trim();
+            if (typeString.isEmpty()) {
+                return vn.edu.primary.test.entity.QuestionType.MULTIPLE_CHOICE;
+            }
+            typeString = typeString.toUpperCase().replace('-', '_').replace(' ', '_');
             try {
-                return vn.edu.primary.test.entity.QuestionType.valueOf((String) q.getType());
+                return vn.edu.primary.test.entity.QuestionType.valueOf(typeString);
             } catch (IllegalArgumentException e) {
                 log.warn("Invalid question type: {}, defaulting to MULTIPLE_CHOICE", q.getType());
                 return vn.edu.primary.test.entity.QuestionType.MULTIPLE_CHOICE;
@@ -369,5 +418,61 @@ public class TestServiceImpl implements TestService {
             log.warn("Invalid status '{}', using default {}", status, defaultStatus);
             return defaultStatus;
         }
+    }
+
+    @Override
+    public List<QuestionDTO> getAllQuestionsByUser(Long userId) {
+        log.info("Getting all questions for user: {}", userId);
+        
+        List<Question> questions = questionRepository.findByTest_CreatedByOrderByIdDesc(userId);
+        
+        return questions.stream().map(this::convertToQuestionDTO).collect(Collectors.toList());
+    }
+    
+    private QuestionDTO convertToQuestionDTO(Question question) {
+        QuestionDTO dto = new QuestionDTO();
+        dto.setId(question.getId());
+        dto.setType(question.getType().name());
+        dto.setContent(question.getContent());
+        dto.setPoints(question.getPoints());
+        dto.setTitle(question.getTitle());
+        dto.setAudioUrl(question.getAudioUrl());
+        dto.setImageUrl(question.getImageUrl());
+        dto.setTranscript(question.getTranscript());
+        
+        try {
+            if (question.getAnswersJson() != null) {
+                List<AnswerDTO> answers = objectMapper.readValue(
+                    question.getAnswersJson(), 
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, AnswerDTO.class)
+                );
+                dto.setAnswers(answers);
+            }
+            
+            if (question.getMatchingPairsJson() != null) {
+                List<MatchingPairDTO> pairs = objectMapper.readValue(
+                    question.getMatchingPairsJson(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, MatchingPairDTO.class)
+                );
+                dto.setMatchingPairs(pairs);
+            }
+            
+            if (question.getBlanksJson() != null) {
+                List<BlankDTO> blanks = objectMapper.readValue(
+                    question.getBlanksJson(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, BlankDTO.class)
+                );
+                dto.setBlanks(blanks);
+            }
+            
+            dto.setTextWithBlanks(question.getTextWithBlanks());
+            dto.setPrompt(question.getPrompt());
+            dto.setMaxLength(question.getMaxLength());
+            
+        } catch (Exception e) {
+            log.error("Error parsing JSON for question {}", question.getId(), e);
+        }
+        
+        return dto;
     }
 }

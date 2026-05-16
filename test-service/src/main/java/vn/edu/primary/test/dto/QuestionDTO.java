@@ -30,10 +30,31 @@ public class QuestionDTO {
     @JsonProperty("audioUrl")
     private String audioUrl;
     
+    @JsonProperty("imageUrl")
+    private String imageUrl;
+    
     @JsonProperty("transcript")
     private String transcript;
     
     private Integer orderIndex;
+    
+    @JsonProperty("matchingPairs")
+    private List<MatchingPairDTO> matchingPairs;
+    
+    @JsonProperty("textWithBlanks")
+    private String textWithBlanks;
+    
+    @JsonProperty("blanks")
+    private List<BlankDTO> blanks;
+    
+    @JsonProperty("prompt")
+    private String prompt;
+    
+    @JsonProperty("maxLength")
+    private Integer maxLength;
+    
+    @JsonProperty("rubric")
+    private String rubric;
     
     public QuestionType getQuestionType() {
         if (type == null) {
