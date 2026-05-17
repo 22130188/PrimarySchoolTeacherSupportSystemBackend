@@ -386,7 +386,27 @@ public class TestController {
         } catch (Exception e) {
             log.error("Error downloading test for admin", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.error("Error downloading test: " + e.getMessage()));
+                    .body(ApiResponse.error("Error downloading test for admin: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/admin/{testId}")
+    public ResponseEntity<ApiResponse<TestResponse>> getTestByIdForAdmin(
+            @PathVariable Long testId,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            log.info("Fetching test {} for admin", testId);
+            UserInfo userInfo = resolveUserInfo(token);
+            if ((userInfo.getRoleId() == null || userInfo.getRoleId() != 3)
+                    && (userInfo.getRole() == null || !userInfo.getRole().equalsIgnoreCase("ADMIN"))) {
+                throw new RuntimeException("Access denied: admin role required");
+            }
+            TestResponse testResponse = testService.getTestByIdForAdmin(testId);
+            return ResponseEntity.ok(ApiResponse.success("Test fetched successfully", testResponse));
+        } catch (Exception e) {
+            log.error("Error fetching test for admin", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error fetching test: " + e.getMessage()));
         }
     }
 
