@@ -1,5 +1,8 @@
 package vn.edu.primary.teacher_support.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -12,27 +15,30 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class OtpService {
 
+    private static final Logger log = LoggerFactory.getLogger(OtpService.class);
+
     private final JavaMailSender mailSender;
 
-    // Lưu OTP tạm thời trong bộ nhớ: email → OtpEntry
+    @Value("${app.mail.test-mode:false}")
+    private boolean mailTestMode;
+
+    @Value("${spring.mail.username:}")
+    private String mailUsername;
+
     private final Map<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
 
     public OtpService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
     }
 
-    //  Tạo và gửi OTP
     public void sendOtp(String email) {
         String otp = generateOtp();
 
-        // Lưu vào store, hết hạn sau 5 phút
         otpStore.put(email, new OtpEntry(otp, LocalDateTime.now().plusMinutes(5)));
 
-        // Gửi email
         sendOtpEmail(email, otp);
     }
 
-    //  Xác thực OTP
     public boolean verifyOtp(String email, String otp) {
         OtpEntry entry = otpStore.get(email);
 
@@ -43,23 +49,21 @@ public class OtpService {
         }
         if (!entry.otp().equals(otp.trim())) return false;
 
-        // Xác thực thành công → xóa khỏi store
         otpStore.remove(email);
         return true;
     }
 
-    //  Helper: tạo OTP 6 số
     private String generateOtp() {
         return String.format("%06d", new Random().nextInt(1_000_000));
     }
 
-    // Helper: gửi email HTML đẹp
     private void sendOtpEmail(String toEmail, String otp) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setFrom("22130248@st.hcmuaf.edu.vn", "TeachAI");
+            String fromAddress = (mailUsername != null && !mailUsername.isBlank()) ? mailUsername : "no-reply@teachai.local";
+            helper.setFrom(fromAddress, "TeachAI");
             helper.setTo(toEmail);
             helper.setSubject("Mã xác thực OTP - TeachAI");
 
@@ -82,13 +86,19 @@ public class OtpService {
                 """.formatted(otp);
 
             helper.setText(html, true);
-            mailSender.send(message);
+
+            if (mailTestMode) {
+                log.info("[OTP TEST MODE] To: {} | OTP: {}", toEmail, otp);
+                log.debug("[OTP TEST MODE] HTML:\n{}", html);
+            } else {
+                mailSender.send(message);
+            }
 
         } catch (Exception e) {
+            log.error("Không thể gửi email to {}: {}", toEmail, e.getMessage(), e);
             throw new RuntimeException("Không thể gửi email: " + e.getMessage());
         }
     }
 
-    //  Inner record lưu OTP + thời gian hết hạn
     private record OtpEntry(String otp, LocalDateTime expiresAt) {}
 }

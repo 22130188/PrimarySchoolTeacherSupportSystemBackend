@@ -8,6 +8,9 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
+import jakarta.persistence.Convert;
+import vn.edu.primary.teacher_support.converter.UserRoleNameConverter;
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -30,18 +33,37 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Column(name = "password_hash", nullable = false)
+    private String passwordHash;
+
+    @Column(name = "full_name", nullable = false, length = 150)
+    private String fullName;
+
     private String avatarUrl;
     private String phone;
+
+    @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
+
+    @Column(name = "school_name")
     private String schoolName;
+
     private String gender;
     private String position;
 
+    @Convert(converter = UserRoleNameConverter.class)
+    @Column(name = "role", nullable = false)
+    private Role.RoleName role;
+
+    @Column(name = "is_active")
     private Boolean isActive = true;
+
+    @Column(name = "is_email_verified")
     private Boolean isEmailVerified = false;
 
-    @Column(updatable = false)
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt = LocalDateTime.now();
 
     @ManyToMany(fetch = FetchType.EAGER)
