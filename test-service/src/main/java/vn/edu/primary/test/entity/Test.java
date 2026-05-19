@@ -54,6 +54,10 @@ public class Test {
     private Integer questionCount;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "test_type", nullable = false, length = 50)
+    private TestType testType;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TestStatus status; 
 

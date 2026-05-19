@@ -68,6 +68,14 @@ public class TestController {
                 userId = extractUserIdFromToken(token);
                 userName = extractUsernameFromToken(token);
             }
+
+            if (token != null && !token.trim().isEmpty() && request.getTestType() != null) {
+                UserInfo userInfo = resolveUserInfo(token);
+                if (userInfo.getRoleId() != null && userInfo.getRoleId() == 1 && "EXERCISE".equalsIgnoreCase(request.getTestType())) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(ApiResponse.error("Học sinh không được phép tạo bài tập"));
+                }
+            }
             
             TestResponse response = testService.createTest(request, userId, userName);
             return ResponseEntity.ok(ApiResponse.success("Test created successfully", response));
@@ -131,7 +139,8 @@ public class TestController {
             @RequestHeader(value = "Authorization", required = false) String token,
             @RequestParam(required = false) String filterType,
             @RequestParam(required = false) String subject,
-            @RequestParam(required = false) String lessonContent) {
+            @RequestParam(required = false) String lessonContent,
+            @RequestParam(required = false) String testType) {
         if (token == null || token.trim().isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error("Authorization token is required"));
@@ -139,7 +148,7 @@ public class TestController {
         try {
             log.info("Fetching filtered questions: filterType={}, subject={}, lessonContent={}", filterType, subject, lessonContent);
             Long userId = extractUserIdFromToken(token);
-            List<QuestionDTO> questions = testService.getFilteredQuestions(userId, filterType, subject, lessonContent);
+            List<QuestionDTO> questions = testService.getFilteredQuestions(userId, filterType, subject, lessonContent, testType);
             return ResponseEntity.ok(ApiResponse.success("Questions fetched successfully", questions));
         } catch (RuntimeException e) {
             log.error("Authentication error fetching questions", e);

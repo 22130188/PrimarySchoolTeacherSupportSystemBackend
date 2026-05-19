@@ -15,6 +15,7 @@ import vn.edu.primary.test.dto.TestResponse;
 import vn.edu.primary.test.entity.Question;
 import vn.edu.primary.test.entity.Test;
 import vn.edu.primary.test.entity.TestStatus;
+import vn.edu.primary.test.entity.TestType;
 import vn.edu.primary.test.repository.QuestionRepository;
 import vn.edu.primary.test.repository.TestRepository;
 import vn.edu.primary.test.service.TestService;
@@ -58,13 +59,14 @@ public class TestServiceImpl implements TestService {
                 .name(request.getName())
                 .subject(request.getSubject())
                 .grade(request.getGrade())
-            .lessonContentName(request.getLessonContentName())
+                .lessonContentName(request.getLessonContentName())
                 .duration(request.getDuration())
                 .description(request.getDescription())
                 .createdBy(userId)
                 .createdByName(userName)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
+                .testType(parseTestType(request.getTestType(), TestType.EXAM))
                 .status(testStatus)
                 .totalPoints(totalPoints)
                 .questionCount(request.getQuestions().size())
@@ -176,6 +178,9 @@ public class TestServiceImpl implements TestService {
         test.setDuration(request.getDuration());
         test.setDescription(request.getDescription());
         test.setUpdatedAt(LocalDateTime.now());
+        if (request.getTestType() != null) {
+            test.setTestType(parseTestType(request.getTestType(), test.getTestType() != null ? test.getTestType() : TestType.EXAM));
+        }
         if (request.getStatus() != null) {
             test.setStatus(parseStatus(request.getStatus(), test.getStatus()));
         }
@@ -257,6 +262,7 @@ public class TestServiceImpl implements TestService {
                     .lessonContentName(test.getLessonContentName())
                     .duration(test.getDuration())
                     .description(test.getDescription())
+                    .testType(test.getTestType() != null ? test.getTestType().name() : null)
                     .questions(questions.stream()
                             .map(this::convertQuestionToDTO)
                             .collect(Collectors.toList()))
@@ -366,6 +372,7 @@ public class TestServiceImpl implements TestService {
                 .lessonContentName(test.getLessonContentName())
                 .totalPoints(test.getTotalPoints())
                 .questionCount(test.getQuestionCount())
+                .testType(test.getTestType() != null ? test.getTestType().name() : null)
                 .status(test.getStatus())
                 .questions(questionDTOs)
                 .build();
@@ -411,6 +418,18 @@ public class TestServiceImpl implements TestService {
         return 0;
     }
 
+    private TestType parseTestType(String testType, TestType defaultType) {
+        if (testType == null || testType.isBlank()) {
+            return defaultType;
+        }
+        try {
+            return TestType.valueOf(testType.toUpperCase().replace(' ', '_'));
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid test type '{}', defaulting to {}", testType, defaultType);
+            return defaultType;
+        }
+    }
+
     private TestStatus parseStatus(String status, TestStatus defaultStatus) {
         if (status == null || status.isBlank()) {
             return defaultStatus;
@@ -450,6 +469,9 @@ public class TestServiceImpl implements TestService {
             dto.setSubject(question.getTest().getSubject());
             dto.setCreatedByName(question.getTest().getCreatedByName());
             dto.setCreatedBy(question.getTest().getCreatedBy());
+            if (question.getTest().getTestType() != null) {
+                dto.setTestType(question.getTest().getTestType().name());
+            }
         }
         
         try {
@@ -489,9 +511,9 @@ public class TestServiceImpl implements TestService {
     }
 
     @Override
-    public List<QuestionDTO> getFilteredQuestions(Long userId, String filterType, String subject, String lessonContent) {
-        log.info("Getting filtered questions for user: {} with filterType: {}, subject: {}, lessonContent: {}", 
-                userId, filterType, subject, lessonContent);
+    public List<QuestionDTO> getFilteredQuestions(Long userId, String filterType, String subject, String lessonContent, String testType) {
+        log.info("Getting filtered questions for user: {} with filterType: {}, subject: {}, lessonContent: {}, testType: {}", 
+                userId, filterType, subject, lessonContent, testType);
         
         List<Question> questions;
         
@@ -516,6 +538,11 @@ public class TestServiceImpl implements TestService {
                     }
                     if (lessonContent != null && !lessonContent.isEmpty() && q.getTest() != null) {
                         if (!lessonContent.equalsIgnoreCase(q.getTest().getLessonContentName())) {
+                            return false;
+                        }
+                    }
+                    if (testType != null && !testType.isEmpty() && q.getTest() != null && q.getTest().getTestType() != null) {
+                        if (!testType.equalsIgnoreCase(q.getTest().getTestType().name())) {
                             return false;
                         }
                     }

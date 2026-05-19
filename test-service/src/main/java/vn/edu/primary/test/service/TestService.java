@@ -17,5 +17,5 @@ public interface TestService {
     void deleteTestForAdmin(Long testId);
     byte[] generateDocx(Long testId, Long userId);
     List<QuestionDTO> getAllQuestionsByUser(Long userId);
-    List<QuestionDTO> getFilteredQuestions(Long userId, String filterType, String subject, String lessonContent);
+    List<QuestionDTO> getFilteredQuestions(Long userId, String filterType, String subject, String lessonContent, String testType);
 }

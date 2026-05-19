@@ -26,6 +26,7 @@ public class TestResponse {
     private String description;
     private Integer totalPoints;
     private Integer questionCount;
+    private String testType;
     private TestStatus status;
     private String lessonContentName;
     private List<QuestionDTO> questions;
