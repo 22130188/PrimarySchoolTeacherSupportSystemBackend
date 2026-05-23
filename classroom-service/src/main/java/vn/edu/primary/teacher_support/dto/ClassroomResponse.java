@@ -16,6 +16,7 @@ public class ClassroomResponse {
     private Long teacherId;
     private String teacherName;
     private String teacherEmail;
+    private String teacherAvatarUrl;
     private String classCode;
     private String inviteLink;
     private int studentCount;
