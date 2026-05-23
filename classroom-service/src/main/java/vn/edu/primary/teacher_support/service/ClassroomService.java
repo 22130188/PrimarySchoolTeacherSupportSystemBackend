@@ -304,6 +304,7 @@ public class ClassroomService {
                 .teacherId(classroom.getTeacherId())
                 .teacherName(teacher != null ? teacher.getUsername() : "Unknown")
                 .teacherEmail(teacher != null ? teacher.getEmail() : "")
+                .teacherAvatarUrl(teacher != null ? teacher.getAvatarUrl() : null)
                 .classCode(classroom.getClassCode())
                 .inviteLink(inviteLink)
                 .studentCount(studentCount)
