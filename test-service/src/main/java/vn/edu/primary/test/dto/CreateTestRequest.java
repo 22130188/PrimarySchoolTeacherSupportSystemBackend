@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.util.List;
+import java.time.LocalDateTime;
 
 @Data
 @AllArgsConstructor
@@ -22,5 +23,7 @@ public class CreateTestRequest {
     private Long userId;
     private String userName;
     private Boolean includeAnswers;
+    private LocalDateTime startAt;
+    private LocalDateTime endAt;
     private List<QuestionDTO> questions;
 }

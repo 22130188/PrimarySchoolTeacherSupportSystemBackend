@@ -66,4 +66,10 @@ public class Test {
 
     @Column
     private String lessonContentName;
+
+    @Column(name = "start_at")
+    private LocalDateTime startAt;
+
+    @Column(name = "end_at")
+    private LocalDateTime endAt;
 }
