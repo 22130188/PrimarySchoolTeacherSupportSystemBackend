@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import vn.edu.primary.test.dto.ApiResponse;
+import vn.edu.primary.test.repository.TestAttemptRepository;
+import vn.edu.primary.test.repository.TestRepository;
 import vn.edu.primary.test.dto.CreateTestRequest;
 import vn.edu.primary.test.dto.QuestionDTO;
 import vn.edu.primary.test.dto.TestResponse;
@@ -23,6 +25,11 @@ import java.util.Map;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Optional;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.nio.file.Paths;
 import java.nio.file.Path;
 import java.nio.file.Files;
@@ -34,6 +41,7 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Cell;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 @RestController
 @RequestMapping("/api/tests")
@@ -45,6 +53,9 @@ public class TestController {
     private final TestService testService;
     private final JwtProvider jwtProvider;
     private final RestTemplate restTemplate;
+    private final TestAttemptRepository testAttemptRepository;
+    private final TestRepository testRepository;
+    private final ObjectMapper objectMapper;
 
     @Value("${python.api.url:http://localhost:8001}")
     private String pythonApiUrl;
@@ -190,6 +201,428 @@ public class TestController {
         }
     }
 
+    @GetMapping("/{testId}/attempts")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAttempts(
+            @PathVariable Long testId,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            log.info("Fetching attempts for test: {}", testId);
+            Long userId = null;
+            try {
+                userId = extractUserIdFromToken(token);
+            } catch (Exception e) {
+            }
+
+            var testOpt = testRepository.findById(testId);
+            List<Map<String, Object>> out = new ArrayList<>();
+            if (testOpt.isPresent()) {
+                var test = testOpt.get();
+                if (test.getStartAt() != null && LocalDateTime.now().isBefore(test.getStartAt())) {
+                    Map<String, Object> info = new HashMap<>();
+                    info.put("message", "Chưa tới thời gian làm bài");
+                    info.put("isAvailable", false);
+                    info.put("startAt", test.getStartAt());
+                    out.add(info);
+                    return ResponseEntity.ok(ApiResponse.success("Attempts fetched", out));
+                }
+            }
+
+            List<vn.edu.primary.test.entity.TestAttempt> attempts = testAttemptRepository.findByTest_IdOrderByCreatedAtDesc(testId);
+
+            for (vn.edu.primary.test.entity.TestAttempt a : attempts) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", a.getId());
+                m.put("userId", a.getUserId());
+                m.put("userName", a.getUserName());
+                m.put("startedAt", a.getStartedAt());
+                m.put("submittedAt", a.getSubmittedAt());
+                m.put("durationMinutes", a.getDurationMinutes());
+                m.put("durationSeconds", a.getDurationSeconds());
+                m.put("score", a.getScore() == null ? 0 : a.getScore());
+                m.put("maxScore", a.getMaxScore() == null ? 0 : a.getMaxScore());
+                m.put("isSubmitted", Boolean.TRUE.equals(a.getIsSubmitted()));
+                if (a.getAnswersJson() != null) {
+                    try {
+                        Object answersData = objectMapper.readValue(a.getAnswersJson(), new TypeReference<Object>() {});
+                        m.put("answersJson", answersData);
+                    } catch (Exception ignore) {
+                        m.put("answersJson", a.getAnswersJson());
+                    }
+                }
+                out.add(m);
+            }
+
+            return ResponseEntity.ok(ApiResponse.success("Attempts fetched", out));
+        } catch (Exception e) {
+            log.error("Error fetching attempts", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error fetching attempts: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{testId}/submissions")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> submitSubmission(
+            @PathVariable Long testId,
+            @RequestBody Map<String, Object> payload,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            log.info("Received submission for test {}: payload keys={}", testId, payload == null ? 0 : payload.keySet());
+            try {
+                vn.edu.primary.test.entity.TestAttempt attempt = null;
+
+                Long resolvedUserId = null;
+                String resolvedUserName = null;
+                try {
+                    var userInfo = resolveUserInfo(token);
+                    resolvedUserId = userInfo.getId();
+                    resolvedUserName = userInfo.getUsername();
+                } catch (Exception ignore) {}
+
+                if (resolvedUserId != null) {
+                    var list = testAttemptRepository.findByTest_IdAndUserIdOrderByCreatedAtDesc(testId, resolvedUserId);
+                    if (list != null && !list.isEmpty()) {
+                        for (var t : list) {
+                            if (t.getIsSubmitted() == null || !t.getIsSubmitted()) {
+                                attempt = t;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (attempt == null) {
+                    attempt = vn.edu.primary.test.entity.TestAttempt.builder()
+                            .userId(resolvedUserId)
+                            .userName(resolvedUserName)
+                            .build();
+                }
+
+                try {
+                    var userInfo = resolveUserInfo(token);
+                    attempt.setUserId(userInfo.getId());
+                    attempt.setUserName(userInfo.getUsername());
+                } catch (Exception ignore) {}
+
+                if (payload != null) {
+                    if (payload.get("submittedAt") != null) {
+                        LocalDateTime submittedAtTime = parsePayloadDateTime(payload.get("submittedAt"));
+                        if (submittedAtTime != null) attempt.setSubmittedAt(submittedAtTime);
+                    }
+                    if (attempt.getStartedAt() == null && payload.get("startedAt") != null) {
+                        LocalDateTime startedAtTime = parsePayloadDateTime(payload.get("startedAt"));
+                        if (startedAtTime != null) attempt.setStartedAt(startedAtTime);
+                    }
+                    try {
+                        attempt.setAnswersJson(objectMapper.writeValueAsString(payload.get("answers")));
+                    } catch (Exception ignore) {}
+                }
+
+                try {
+                    var testOpt = testRepository.findById(testId);
+                    if (testOpt.isPresent()) {
+                        attempt.setTest(testOpt.get());
+                    }
+                } catch (Exception ignore) {}
+
+                if (attempt.getCreatedAt() == null) attempt.setCreatedAt(java.time.LocalDateTime.now());
+                attempt.setUpdatedAt(java.time.LocalDateTime.now());
+
+                attempt.setIsSubmitted(true);
+                attempt.setStatus("submitted");
+
+                if (attempt.getSubmittedAt() == null) attempt.setSubmittedAt(java.time.LocalDateTime.now());
+
+                if (attempt.getStartedAt() != null && attempt.getSubmittedAt() != null) {
+                    try {
+                        Duration d = Duration.between(attempt.getStartedAt(), attempt.getSubmittedAt());
+                        long seconds = Math.max(0, d.getSeconds());
+                        int secs = (int) seconds;
+                        int mins = (int) ((seconds + 59) / 60);
+                        attempt.setDurationSeconds(secs);
+                        attempt.setDurationMinutes(mins);
+                    } catch (Exception ignore) {}
+                }
+
+                TestResponse testData = null;
+                try {
+                    testData = testService.getTestById(testId, resolvedUserId);
+                } catch (Exception ignore) {}
+
+                int computedMaxScore = computeMaxScore(testData);
+                int computedScore = computeScore(testData, payload == null ? null : payload.get("answers"));
+
+                if (payload != null && payload.get("score") != null) {
+                    try {
+                        attempt.setScore(Integer.parseInt(payload.get("score").toString()));
+                    } catch (Exception ignore) {
+                        attempt.setScore(computedScore);
+                    }
+                } else {
+                    attempt.setScore(computedScore);
+                }
+
+                attempt.setMaxScore(payload != null && payload.get("maxScore") != null
+                        ? Integer.parseInt(payload.get("maxScore").toString())
+                        : (attempt.getMaxScore() == null ? computedMaxScore : attempt.getMaxScore()));
+
+                attempt = testAttemptRepository.save(attempt);
+
+                Map<String, Object> result = new HashMap<>();
+                result.put("score", attempt.getScore());
+                result.put("maxScore", attempt.getMaxScore());
+                result.put("status", attempt.getStatus());
+                result.put("submittedAt", attempt.getSubmittedAt() != null ? attempt.getSubmittedAt().toString() : java.time.Instant.now().toString());
+                result.put("attemptId", attempt.getId());
+                result.put("durationMinutes", attempt.getDurationMinutes());
+                result.put("durationSeconds", attempt.getDurationSeconds());
+                return ResponseEntity.ok(ApiResponse.success("Submission received", result));
+            } catch (Exception ex) {
+                log.warn("Attempt repository not available or error saving attempt: {}", ex.getMessage());
+                Map<String, Object> result = new HashMap<>();
+                result.put("score", 0);
+                result.put("maxScore", payload != null && payload.get("maxScore") != null ? payload.get("maxScore") : 0);
+                result.put("status", "submitted");
+                result.put("submittedAt", java.time.Instant.now().toString());
+                result.put("durationMinutes", payload != null && payload.get("durationMinutes") != null ? payload.get("durationMinutes") : 0);
+                result.put("durationSeconds", payload != null && payload.get("durationSeconds") != null ? payload.get("durationSeconds") : 0);
+                return ResponseEntity.ok(ApiResponse.success("Submission received", result));
+            }
+        } catch (Exception e) {
+            log.error("Error receiving submission", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error submitting: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{testId}/submit")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> submitAlias(
+            @PathVariable Long testId,
+            @RequestBody Map<String, Object> payload,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        return submitSubmission(testId, payload, token);
+    }
+
+    private int computeMaxScore(TestResponse testData) {
+        if (testData == null) return 0;
+        if (testData.getTotalPoints() != null && testData.getTotalPoints() > 0) {
+            return testData.getTotalPoints();
+        }
+        return testData.getQuestions() == null ? 0 : testData.getQuestions().stream()
+                .mapToInt(q -> q.getPoints() == null ? 0 : q.getPoints())
+                .sum();
+    }
+
+    private int computeScore(TestResponse testData, Object answersObj) {
+        if (testData == null || testData.getQuestions() == null || testData.getQuestions().isEmpty()) {
+            return 0;
+        }
+        Map<String, Object> answers = parseAnswersMap(answersObj);
+        log.info("=== SCORING START ===");
+        log.info("Test: {} questions", testData.getQuestions().size());
+        log.info("Answers received: {}", answers.keySet());
+        int totalScore = 0;
+        for (QuestionDTO question : testData.getQuestions()) {
+            if (question == null) continue;
+            Object answer = findAnswerForQuestion(answers, question.getId());
+            if (answer == null) {
+                log.debug("No answer found for question {}", question.getId());
+                continue;
+            }
+            int questionPoints = question.getPoints() == null ? 0 : question.getPoints();
+            if (questionPoints <= 0) questionPoints = 1;
+            String type = question.getType() == null ? "MULTIPLE_CHOICE" : question.getType().toString().toUpperCase().replace('-', '_');
+            try {
+                Map<String, Object> answerMap = null;
+                if (answer instanceof Map) {
+                    answerMap = (Map<String, Object>) answer;
+                } else {
+                    try {
+                        answerMap = objectMapper.convertValue(answer, new TypeReference<Map<String, Object>>() {});
+                    } catch (Exception ignore) {
+                        answerMap = null;
+                    }
+                }
+                if ("MULTIPLE_CHOICE".equals(type)) {
+                    Integer selectedIndex = null;
+                    if (answerMap != null && answerMap.containsKey("selectedIndex")) {
+                        selectedIndex = answerMap.get("selectedIndex") == null ? null : objectMapper.convertValue(answerMap.get("selectedIndex"), Integer.class);
+                    }
+                    log.debug("Q{}: MULTIPLE_CHOICE selectedIndex={}", question.getId(), selectedIndex);
+                    if (selectedIndex != null && question.getAnswers() != null && selectedIndex >= 0 && selectedIndex < question.getAnswers().size()) {
+                        Boolean isCorrect = question.getAnswers().get(selectedIndex).getIsCorrect();
+                        log.debug("Q{}: answer={}, isCorrect={}", question.getId(), question.getAnswers().get(selectedIndex).getLabel(), isCorrect);
+                        if (Boolean.TRUE.equals(isCorrect)) {
+                            totalScore += questionPoints;
+                            log.debug("Q{}: +{} points (total={})", question.getId(), questionPoints, totalScore);
+                        } else {
+                            log.debug("Q{}: 0 points (isCorrect={} is not true)", question.getId(), isCorrect);
+                        }
+                    } else {
+                        log.debug("Q{}: selectedIndex invalid or answers null", question.getId());
+                    }
+                } else if ("MATCHING".equals(type)) {
+                    List<String> mappings = null;
+                    if (answer instanceof List) {
+                        mappings = objectMapper.convertValue(answer, new TypeReference<List<String>>() {});
+                    } else if (answerMap != null) {
+                        Object rawMappings = answerMap.get("mappings");
+                        if (rawMappings == null) rawMappings = answerMap.get("answers");
+                        if (rawMappings != null) {
+                            mappings = objectMapper.convertValue(rawMappings, new TypeReference<List<String>>() {});
+                        }
+                    }
+                    if (question.getMatchingPairs() != null && mappings != null && mappings.size() == question.getMatchingPairs().size()) {
+                        boolean allCorrect = true;
+                        for (int i = 0; i < question.getMatchingPairs().size(); i++) {
+                            String expected = question.getMatchingPairs().get(i).getRight();
+                            String actual = mappings.get(i);
+                            if (expected == null || actual == null || !expected.trim().equalsIgnoreCase(actual.trim())) {
+                                allCorrect = false;
+                                break;
+                            }
+                        }
+                        if (allCorrect) totalScore += questionPoints;
+                    }
+                } else if ("FILL_IN_BLANK".equals(type)) {
+                    List<String> submittedAnswers = null;
+                    if (answer instanceof List) {
+                        submittedAnswers = objectMapper.convertValue(answer, new TypeReference<List<String>>() {});
+                    } else if (answerMap != null) {
+                        Object rawAnswers = answerMap.get("answers");
+                        if (rawAnswers == null) rawAnswers = answerMap.get("values");
+                        if (rawAnswers != null) {
+                            submittedAnswers = objectMapper.convertValue(rawAnswers, new TypeReference<List<String>>() {});
+                        }
+                    }
+                    if (question.getBlanks() != null && submittedAnswers != null && submittedAnswers.size() >= question.getBlanks().size()) {
+                        boolean allCorrect = true;
+                        for (int i = 0; i < question.getBlanks().size(); i++) {
+                            String expected = question.getBlanks().get(i).getCorrectAnswer();
+                            String actual = submittedAnswers.get(i);
+                            if (expected == null || actual == null || !expected.trim().equalsIgnoreCase(actual.trim())) {
+                                allCorrect = false;
+                                break;
+                            }
+                        }
+                        if (allCorrect) totalScore += questionPoints;
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error scoring question {}: {}", question.getId(), e.getMessage());
+            }
+        }
+        log.info("=== SCORING END: totalScore={} ===", totalScore);
+        return totalScore;
+    }
+
+    private Map<String, Object> parseAnswersMap(Object answersObj) {
+        if (answersObj == null) {
+            return new HashMap<>();
+        }
+        try {
+            if (answersObj instanceof Map) {
+                Map<?, ?> raw = (Map<?, ?>) answersObj;
+                Map<String, Object> normalized = new HashMap<>();
+                for (Map.Entry<?, ?> entry : raw.entrySet()) {
+                    if (entry.getKey() == null) continue;
+                    normalized.put(entry.getKey().toString(), entry.getValue());
+                }
+                return normalized;
+            }
+            return objectMapper.convertValue(answersObj, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.warn("Unable to parse answers map", e);
+            return new HashMap<>();
+        }
+    }
+
+    private LocalDateTime parsePayloadDateTime(Object value) {
+        if (value == null) return null;
+        try {
+            String raw = value.toString();
+            try {
+                OffsetDateTime odt = OffsetDateTime.parse(raw);
+                return odt.atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime();
+            } catch (DateTimeParseException ex) {
+                return LocalDateTime.parse(raw);
+            }
+        } catch (Exception e) {
+            log.warn("Unable to parse date/time payload value: {}", value);
+            return null;
+        }
+    }
+
+    private Object findAnswerForQuestion(Map<String, Object> answers, Long questionId) {
+        if (answers == null || questionId == null) return null;
+        String idKey = questionId.toString();
+        if (answers.containsKey(idKey)) {
+            return answers.get(idKey);
+        }
+        for (Map.Entry<String, Object> entry : answers.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equals(questionId)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    @PostMapping("/{testId}/attempts")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> createAttempt(
+            @PathVariable Long testId,
+            @RequestBody Map<String, Object> payload,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            log.info("Create/start attempt for test {}: payload keys={}", testId, payload == null ? 0 : payload.keySet());
+
+            Long resolvedUserId = null;
+            String resolvedUserName = null;
+            try {
+                var userInfo = resolveUserInfo(token);
+                resolvedUserId = userInfo.getId();
+                resolvedUserName = userInfo.getUsername();
+            } catch (Exception ignore) {}
+
+            var testOpt = testRepository.findById(testId);
+            if (testOpt.isPresent()) {
+                var test = testOpt.get();
+                if (test.getStartAt() != null && LocalDateTime.now().isBefore(test.getStartAt())) {
+                    Map<String, Object> res = new HashMap<>();
+                    res.put("message", "Chưa tới thời gian làm bài");
+                    res.put("startAt", test.getStartAt());
+                    return ResponseEntity.ok(ApiResponse.success("Not available yet", res));
+                }
+            }
+
+            vn.edu.primary.test.entity.TestAttempt attempt = vn.edu.primary.test.entity.TestAttempt.builder()
+                    .userId(resolvedUserId)
+                    .userName(resolvedUserName)
+                    .build();
+
+            try {
+                var to = testRepository.findById(testId);
+                if (to.isPresent()) attempt.setTest(to.get());
+            } catch (Exception ignore) {}
+
+            attempt.setStartedAt(LocalDateTime.now());
+            attempt.setIsSubmitted(false);
+            attempt.setStatus("started");
+            attempt.setCreatedAt(LocalDateTime.now());
+            attempt.setUpdatedAt(LocalDateTime.now());
+
+            attempt = testAttemptRepository.save(attempt);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("attemptId", attempt.getId());
+            result.put("startedAt", attempt.getStartedAt());
+            result.put("status", attempt.getStatus());
+            return ResponseEntity.ok(ApiResponse.success("Attempt started", result));
+        } catch (Exception e) {
+            log.error("Error creating attempt", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error creating attempt: " + e.getMessage()));
+        }
+    }
+
     @GetMapping("/lesson-contents")
     public ResponseEntity<ApiResponse<List<Map<String, String>>>> getLessonContents() {
         try {
@@ -212,7 +645,6 @@ public class TestController {
                 Workbook workbook = WorkbookFactory.create(is);
                 Sheet sheet = workbook.getSheetAt(0);
 
-                // Try to detect header row (search first 10 rows)
                 int headerRowIdx = -1;
                 int maxHeaderSearch = Math.min(10, sheet.getLastRowNum() + 1);
                 for (int r = 0; r < maxHeaderSearch; r++) {
@@ -230,7 +662,7 @@ public class TestController {
 
                 int subjectCol = 0;
                 int gradeCol = 1;
-                int nameCol = 3; // default guess
+                int nameCol = 3;
 
                 if (headerRowIdx >= 0) {
                     Row header = sheet.getRow(headerRowIdx);

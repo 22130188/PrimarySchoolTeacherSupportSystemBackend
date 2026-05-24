@@ -41,6 +41,17 @@ public class ClassroomPostController {
                 .body(classroomPostService.createPost(classroomId, userId, request));
     }
 
+    @PatchMapping("/{postId}")
+    public ResponseEntity<ClassroomPostResponse> updatePost(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long classroomId,
+            @PathVariable Long postId,
+            @Valid @RequestBody CreateClassroomPostRequest request
+    ) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(classroomPostService.updatePost(classroomId, postId, userId, request));
+    }
+
     @DeleteMapping("/{postId}")
     public ResponseEntity<Void> deletePost(
             @RequestHeader("Authorization") String authorization,

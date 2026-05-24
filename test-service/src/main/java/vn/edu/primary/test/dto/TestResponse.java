@@ -29,5 +29,7 @@ public class TestResponse {
     private String testType;
     private TestStatus status;
     private String lessonContentName;
+    private LocalDateTime startAt;
+    private LocalDateTime endAt;
     private List<QuestionDTO> questions;
 }

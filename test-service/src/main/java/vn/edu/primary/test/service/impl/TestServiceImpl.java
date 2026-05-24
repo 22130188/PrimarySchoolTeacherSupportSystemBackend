@@ -42,10 +42,27 @@ public class TestServiceImpl implements TestService {
     @Transactional
     public TestResponse createTest(CreateTestRequest request, Long userId, String userName) {
         log.info("Creating test: {} for user: {} ({})", request.getName(), userId, userName);
+        if (request == null) {
+            throw new IllegalArgumentException("Request body is required");
+        }
 
-        Integer totalPoints = request.getQuestions().stream()
+        if (request.getName() == null || request.getName().isBlank()) {
+            throw new IllegalArgumentException("Test name is required");
+        }
+
+        if (request.getSubject() == null || request.getSubject().isBlank()) {
+            throw new IllegalArgumentException("Subject is required");
+        }
+
+        if (request.getDuration() == null) {
+            throw new IllegalArgumentException("Duration (minutes) is required");
+        }
+
+        List<QuestionDTO> questionsList = request.getQuestions() == null ? java.util.Collections.<QuestionDTO>emptyList() : request.getQuestions();
+
+        Integer totalPoints = questionsList.stream()
                 .mapToInt(q -> {
-                    if (q.getPoints() == null) return 0;
+                    if (q == null || q.getPoints() == null) return 0;
                     try {
                         return q.getPoints().toString().isEmpty() ? 0 : Integer.parseInt(q.getPoints().toString());
                     } catch (NumberFormatException e) {
@@ -66,16 +83,18 @@ public class TestServiceImpl implements TestService {
                 .createdByName(userName)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
+                .startAt(request.getStartAt())
+                .endAt(request.getEndAt())
                 .testType(parseTestType(request.getTestType(), TestType.EXAM))
                 .status(testStatus)
                 .totalPoints(totalPoints)
-                .questionCount(request.getQuestions().size())
+                .questionCount(questionsList.size())
                 .build();
 
         Test savedTest = testRepository.save(test);
         log.info("Test created with id: {}", savedTest.getId());
 
-        List<Question> questions = request.getQuestions().stream()
+        List<Question> questions = questionsList.stream()
                 .map((q) -> Question.builder()
                         .test(savedTest)
                         .type(convertToQuestionType(q))
@@ -100,14 +119,14 @@ public class TestServiceImpl implements TestService {
         questionRepository.saveAll(questions);
         log.info("Saved {} questions for test: {}", questions.size(), savedTest.getId());
 
-        return convertToResponse(savedTest, request.getQuestions());
+        return convertToResponse(savedTest, questionsList);
     }
 
     @Override
     public TestResponse getTestById(Long testId, Long userId) {
         log.info("Getting test: {} for user: {}", testId, userId);
-        Test test = testRepository.findByIdAndCreatedBy(testId, userId)
-                .orElseThrow(() -> new RuntimeException("Test not found or access denied"));
+        Test test = testRepository.findById(testId)
+                .orElseThrow(() -> new RuntimeException("Test not found"));
 
         List<Question> questions = questionRepository.findByTestIdOrderByOrderIndexAsc(testId);
         List<QuestionDTO> questionDTOs = questions.stream()
@@ -178,6 +197,8 @@ public class TestServiceImpl implements TestService {
         test.setDuration(request.getDuration());
         test.setDescription(request.getDescription());
         test.setUpdatedAt(LocalDateTime.now());
+        test.setStartAt(request.getStartAt());
+        test.setEndAt(request.getEndAt());
         if (request.getTestType() != null) {
             test.setTestType(parseTestType(request.getTestType(), test.getTestType() != null ? test.getTestType() : TestType.EXAM));
         }
@@ -463,7 +484,6 @@ public class TestServiceImpl implements TestService {
         dto.setImageUrl(question.getImageUrl());
         dto.setTranscript(question.getTranscript());
         
-        // Add test-related information
         if (question.getTest() != null) {
             dto.setLessonContentName(question.getTest().getLessonContentName());
             dto.setSubject(question.getTest().getSubject());
@@ -518,17 +538,13 @@ public class TestServiceImpl implements TestService {
         List<Question> questions;
         
         if ("my-questions".equals(filterType)) {
-            // Câu hỏi của tôi
             questions = questionRepository.findByTest_CreatedByOrderByIdDesc(userId);
         } else if ("other-questions".equals(filterType)) {
-            // Câu hỏi của người khác tạo
             questions = questionRepository.findByTest_CreatedByNotOrderByIdDesc(userId);
         } else {
-            // Tất cả câu hỏi
             questions = questionRepository.findAllOrderByIdDesc();
         }
         
-        // Apply subject and lesson content filters
         return questions.stream()
                 .filter(q -> {
                     if (subject != null && !subject.isEmpty() && q.getTest() != null) {

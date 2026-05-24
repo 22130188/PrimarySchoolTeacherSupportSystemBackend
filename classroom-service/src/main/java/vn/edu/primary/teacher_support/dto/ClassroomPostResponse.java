@@ -1,6 +1,7 @@
 package vn.edu.primary.teacher_support.dto;
 
 import lombok.*;
+import vn.edu.primary.teacher_support.entity.enums.PostType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,6 +17,15 @@ public class ClassroomPostResponse {
     private Long authorId;
     private String authorName;
     private String authorAvatarUrl;
+    private PostType postType;
+    private String title;
+    private Integer attemptLimit;
+    private Integer questionCount;
+    private Integer maxPoints;
+    private LocalDateTime startAt;
+    private Integer durationMinutes;
+    private Long referenceTestId;
+    private String referenceTestName;
     private String content;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
