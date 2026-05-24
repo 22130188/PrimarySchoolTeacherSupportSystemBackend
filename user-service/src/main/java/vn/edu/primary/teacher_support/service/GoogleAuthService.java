@@ -3,6 +3,8 @@ package vn.edu.primary.teacher_support.service;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import vn.edu.primary.teacher_support.entity.Role;
 import vn.edu.primary.teacher_support.entity.User;
 import vn.edu.primary.teacher_support.repository.RoleRepository;
@@ -12,16 +14,23 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
+
 @Service
 public class GoogleAuthService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    private static final Logger log = LoggerFactory.getLogger(GoogleAuthService.class);
 
     public GoogleAuthService(UserRepository userRepository,
-                             RoleRepository roleRepository) {
+                             RoleRepository roleRepository,
+                             PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -31,41 +40,46 @@ public class GoogleAuthService {
         String name      = oAuth2User.getAttribute("name");
         String avatarUrl = oAuth2User.getAttribute("picture");
 
-        // Nếu đã có tài khoản với email này → trả về
+        log.info("GoogleAuthService: attributes email={} name={} picture={}", email, name, avatarUrl);
+
+        if (email == null) {
+            log.error("GoogleAuthService: missing email attribute in OAuth2User: {}", oAuth2User.getAttributes());
+            throw new IllegalArgumentException("OAuth2 login failed: email not provided");
+        }
+
         return userRepository.findByEmail(email).orElseGet(() -> {
 
-            // Tạo user mới với giá trị mặc định cho các field bắt buộc
             User newUser = new User();
             newUser.setEmail(email);
 
-            // Username = phần trước @ của email
             String baseUsername = email.split("@")[0].replaceAll("[^a-zA-Z0-9]", "");
             String username     = generateUniqueUsername(baseUsername);
             newUser.setUsername(username);
 
-            // Mật khẩu random
-            newUser.setPassword(UUID.randomUUID().toString());
+            String randomPassword = UUID.randomUUID().toString();
+            String encodedPassword = passwordEncoder.encode(randomPassword);
+            newUser.setPassword(encodedPassword);
+            newUser.setPasswordHash(encodedPassword);
 
-//            newUser.setAvatarUrl(avatarUrl);
-
+            newUser.setFullName(name != null ? name : username);
+            newUser.setAvatarUrl(avatarUrl);
             newUser.setSchoolName("");
             newUser.setIsEmailVerified(true);
             newUser.setIsActive(true);
+            newUser.setRole(Role.RoleName.STUDENT);
 
-            // Gán role mặc định là STUDENT
-            Role studentRole = roleRepository
+                Role studentRole = roleRepository
                     .findByName(Role.RoleName.STUDENT)
-                    .orElseThrow(() -> new RuntimeException("Role STUDENT không tồn tại"));
+                    .orElseGet(() -> roleRepository.save(new Role(Role.RoleName.STUDENT)));
 
-            Set<Role> roles = new HashSet<>();
-            roles.add(studentRole);
-            newUser.setRoles(roles);
+                Set<Role> roles = new HashSet<>();
+                roles.add(studentRole);
+                newUser.setRoles(roles);
 
             return userRepository.save(newUser);
         });
     }
 
-    // Tạo username duy nhất nếu bị trùng
     private String generateUniqueUsername(String base) {
         String candidate = base;
         int suffix = 1;

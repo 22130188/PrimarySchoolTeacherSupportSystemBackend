@@ -24,6 +24,18 @@ public class QuestionDTO {
     private String title;
     private Integer numberQuestions;
     
+    @JsonProperty("lessonContentName")
+    private String lessonContentName;
+    
+    @JsonProperty("subject")
+    private String subject;
+    
+    @JsonProperty("createdByName")
+    private String createdByName;
+    
+    @JsonProperty("createdBy")
+    private Long createdBy;
+    
     @JsonProperty("answers")
     private List<AnswerDTO> answers;
     
@@ -36,6 +48,9 @@ public class QuestionDTO {
     @JsonProperty("transcript")
     private String transcript;
     
+    @JsonProperty("testType")
+    private String testType;
+
     private Integer orderIndex;
     
     @JsonProperty("matchingPairs")

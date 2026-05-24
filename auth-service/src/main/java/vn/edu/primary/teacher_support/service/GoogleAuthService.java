@@ -31,19 +31,15 @@ public class GoogleAuthService {
         String name      = oAuth2User.getAttribute("name");
         String avatarUrl = oAuth2User.getAttribute("picture");
 
-        // Nếu đã có tài khoản với email này → trả về
         return userRepository.findByEmail(email).orElseGet(() -> {
 
-            // Tạo user mới với giá trị mặc định cho các field bắt buộc
             User newUser = new User();
             newUser.setEmail(email);
 
-            // Username = phần trước @ của email
             String baseUsername = email.split("@")[0].replaceAll("[^a-zA-Z0-9]", "");
             String username     = generateUniqueUsername(baseUsername);
             newUser.setUsername(username);
 
-            // Mật khẩu random
             newUser.setPassword(UUID.randomUUID().toString());
 
 //            newUser.setAvatarUrl(avatarUrl);
@@ -52,20 +48,18 @@ public class GoogleAuthService {
             newUser.setIsEmailVerified(true);
             newUser.setIsActive(true);
 
-            // Gán role mặc định là STUDENT
-            Role studentRole = roleRepository
+                Role studentRole = roleRepository
                     .findByName(Role.RoleName.STUDENT)
-                    .orElseThrow(() -> new RuntimeException("Role STUDENT không tồn tại"));
+                    .orElseGet(() -> roleRepository.save(new Role(Role.RoleName.STUDENT)));
 
-            Set<Role> roles = new HashSet<>();
-            roles.add(studentRole);
-            newUser.setRoles(roles);
+                Set<Role> roles = new HashSet<>();
+                roles.add(studentRole);
+                newUser.setRoles(roles);
 
             return userRepository.save(newUser);
         });
     }
 
-    // Tạo username duy nhất nếu bị trùng
     private String generateUniqueUsername(String base) {
         String candidate = base;
         int suffix = 1;

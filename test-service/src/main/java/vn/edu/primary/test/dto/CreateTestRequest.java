@@ -16,7 +16,9 @@ public class CreateTestRequest {
     private String grade;
     private Integer duration;
     private String description;
+    private String lessonContentName;
     private String status;
+    private String testType;
     private Long userId;
     private String userName;
     private Boolean includeAnswers;

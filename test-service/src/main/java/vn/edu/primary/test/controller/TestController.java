@@ -19,6 +19,20 @@ import vn.edu.primary.test.security.JwtProvider;
 import vn.edu.primary.test.service.TestService;
 
 import java.util.List;
+import java.util.Map;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Optional;
+import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.io.InputStream;
+import java.io.FileInputStream;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Cell;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @RestController
@@ -53,6 +67,14 @@ public class TestController {
             if (userId == null || userId <= 0 || userName == null || userName.isBlank()) {
                 userId = extractUserIdFromToken(token);
                 userName = extractUsernameFromToken(token);
+            }
+
+            if (token != null && !token.trim().isEmpty() && request.getTestType() != null) {
+                UserInfo userInfo = resolveUserInfo(token);
+                if (userInfo.getRoleId() != null && userInfo.getRoleId() == 1 && "EXERCISE".equalsIgnoreCase(request.getTestType())) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(ApiResponse.error("Học sinh không được phép tạo bài tập"));
+                }
             }
             
             TestResponse response = testService.createTest(request, userId, userName);
@@ -112,6 +134,33 @@ public class TestController {
         }
     }
 
+    @GetMapping("/questions/filter")
+    public ResponseEntity<ApiResponse<List<QuestionDTO>>> getFilteredQuestions(
+            @RequestHeader(value = "Authorization", required = false) String token,
+            @RequestParam(required = false) String filterType,
+            @RequestParam(required = false) String subject,
+            @RequestParam(required = false) String lessonContent,
+            @RequestParam(required = false) String testType) {
+        if (token == null || token.trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authorization token is required"));
+        }
+        try {
+            log.info("Fetching filtered questions: filterType={}, subject={}, lessonContent={}", filterType, subject, lessonContent);
+            Long userId = extractUserIdFromToken(token);
+            List<QuestionDTO> questions = testService.getFilteredQuestions(userId, filterType, subject, lessonContent, testType);
+            return ResponseEntity.ok(ApiResponse.success("Questions fetched successfully", questions));
+        } catch (RuntimeException e) {
+            log.error("Authentication error fetching questions", e);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Unauthorized: " + e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error fetching questions", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error fetching questions: " + e.getMessage()));
+        }
+    }
+
     @GetMapping("/admin/all")
     public ResponseEntity<ApiResponse<List<TestResponse>>> getAllTestsForAdmin() {
         try {
@@ -139,6 +188,90 @@ public class TestController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error("Error fetching test: " + e.getMessage()));
         }
+    }
+
+    @GetMapping("/lesson-contents")
+    public ResponseEntity<ApiResponse<List<Map<String, String>>>> getLessonContents() {
+        try {
+            Path dbDir = Paths.get("database");
+            if (!Files.exists(dbDir) || !Files.isDirectory(dbDir)) {
+                return ResponseEntity.ok(ApiResponse.success("No database directory found", new ArrayList<>()));
+            }
+
+            Optional<Path> excelFile = Files.list(dbDir)
+                    .filter(p -> p.toString().toLowerCase().endsWith(".xlsx") || p.toString().toLowerCase().endsWith(".xls"))
+                    .findFirst();
+
+            if (!excelFile.isPresent()) {
+                return ResponseEntity.ok(ApiResponse.success("No excel file found", new ArrayList<>()));
+            }
+
+            List<Map<String, String>> results = new ArrayList<>();
+
+            try (InputStream is = new FileInputStream(excelFile.get().toFile())) {
+                Workbook workbook = WorkbookFactory.create(is);
+                Sheet sheet = workbook.getSheetAt(0);
+
+                // Try to detect header row (search first 10 rows)
+                int headerRowIdx = -1;
+                int maxHeaderSearch = Math.min(10, sheet.getLastRowNum() + 1);
+                for (int r = 0; r < maxHeaderSearch; r++) {
+                    Row row = sheet.getRow(r);
+                    if (row == null) continue;
+                    for (Cell cell : row) {
+                        String txt = cell.toString().toLowerCase();
+                        if (txt.contains("môn") || txt.contains("mon") || txt.contains("môn học")) {
+                            headerRowIdx = r;
+                            break;
+                        }
+                    }
+                    if (headerRowIdx >= 0) break;
+                }
+
+                int subjectCol = 0;
+                int gradeCol = 1;
+                int nameCol = 3; // default guess
+
+                if (headerRowIdx >= 0) {
+                    Row header = sheet.getRow(headerRowIdx);
+                    for (Cell cell : header) {
+                        String txt = cell.toString().toLowerCase();
+                        int c = cell.getColumnIndex();
+                        if (txt.contains("môn") || txt.contains("môn học") || txt.contains("mon")) subjectCol = c;
+                        if (txt.contains("lớp") || txt.contains("lop") || txt.contains("lớp học")) gradeCol = c;
+                        if (txt.contains("bài") || txt.contains("nội dung") || txt.contains("bài học") || txt.contains("nội dung chính")) nameCol = c;
+                    }
+                }
+
+                int startRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 1;
+                for (int r = startRow; r <= sheet.getLastRowNum(); r++) {
+                    Row row = sheet.getRow(r);
+                    if (row == null) continue;
+                    String subject = getCellString(row, subjectCol);
+                    String grade = getCellString(row, gradeCol);
+                    String name = getCellString(row, nameCol);
+                    if ((subject == null || subject.isBlank()) && (grade == null || grade.isBlank()) && (name == null || name.isBlank())) continue;
+                    Map<String, String> item = new HashMap<>();
+                    item.put("subject", subject == null ? "" : subject);
+                    item.put("grade", grade == null ? "" : grade);
+                    item.put("name", name == null ? "" : name);
+                    results.add(item);
+                }
+            }
+
+            return ResponseEntity.ok(ApiResponse.success("Lesson contents loaded", results));
+        } catch (Exception e) {
+            log.error("Error loading lesson contents", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error reading lesson contents: " + e.getMessage()));
+        }
+    }
+
+    private String getCellString(Row row, int colIdx) {
+        if (row == null) return null;
+        Cell cell = row.getCell(colIdx);
+        if (cell == null) return null;
+        return cell.toString().trim();
     }
 
     @PutMapping("/{testId}")
@@ -262,7 +395,27 @@ public class TestController {
         } catch (Exception e) {
             log.error("Error downloading test for admin", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.error("Error downloading test: " + e.getMessage()));
+                    .body(ApiResponse.error("Error downloading test for admin: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/admin/{testId}")
+    public ResponseEntity<ApiResponse<TestResponse>> getTestByIdForAdmin(
+            @PathVariable Long testId,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            log.info("Fetching test {} for admin", testId);
+            UserInfo userInfo = resolveUserInfo(token);
+            if ((userInfo.getRoleId() == null || userInfo.getRoleId() != 3)
+                    && (userInfo.getRole() == null || !userInfo.getRole().equalsIgnoreCase("ADMIN"))) {
+                throw new RuntimeException("Access denied: admin role required");
+            }
+            TestResponse testResponse = testService.getTestByIdForAdmin(testId);
+            return ResponseEntity.ok(ApiResponse.success("Test fetched successfully", testResponse));
+        } catch (Exception e) {
+            log.error("Error fetching test for admin", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error fetching test: " + e.getMessage()));
         }
     }
 
