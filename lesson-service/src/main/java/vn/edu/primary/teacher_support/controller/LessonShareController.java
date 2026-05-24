@@ -80,4 +80,50 @@ public class LessonShareController {
         Long newDraftId = shareService.duplicateSharedDraft(id, userId);
         return ResponseEntity.ok(Map.of("message", "Đã tạo bản sao thành công", "newDraftId", newDraftId));
     }
+
+    @PostMapping("/drafts/{id}/classroom-shares")
+    public ResponseEntity<ClassroomShareResponse> shareToClassroom(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long id,
+            @Valid @RequestBody ShareToClassroomRequest request) {
+        Long userId = authHelper.extractUserId(authorization);
+        ClassroomShareResponse response = shareService.shareToClassroom(id, userId, request.getClassroomId());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/drafts/{id}/classroom-shares")
+    public ResponseEntity<List<ClassroomShareResponse>> getClassroomShares(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long id) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(shareService.getClassroomShares(id, userId));
+    }
+
+    @DeleteMapping("/drafts/{id}/classroom-shares/{classroomId}")
+    public ResponseEntity<Map<String, String>> revokeClassroomShare(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long id,
+            @PathVariable Long classroomId) {
+        Long userId = authHelper.extractUserId(authorization);
+        shareService.revokeClassroomShare(id, classroomId, userId);
+        return ResponseEntity.ok(Map.of("message", "Đã thu hồi chia sẻ lớp học thành công"));
+    }
+
+    @GetMapping("/classrooms/{classroomId}/shared-drafts")
+    public ResponseEntity<List<SharedDraftResponse>> getLessonsSharedToClassroom(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long classroomId) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(shareService.getLessonsSharedToClassroom(classroomId, userId));
+    }
+
+    @GetMapping("/classrooms/{classroomId}/shared-drafts/{draftId}")
+    public ResponseEntity<SharedDraftResponse> getClassroomSharedDraft(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long classroomId,
+            @PathVariable Long draftId) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(shareService.getClassroomSharedDraft(draftId, classroomId, userId));
+    }
 }
+

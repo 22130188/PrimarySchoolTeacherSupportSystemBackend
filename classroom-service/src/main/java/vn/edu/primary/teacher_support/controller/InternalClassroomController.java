@@ -58,4 +58,44 @@ public class InternalClassroomController {
             return ResponseEntity.ok(Map.of("valid", false, "message", e.getMessage()));
         }
     }
+    @GetMapping("/classrooms/{id}")
+    public ResponseEntity<Map<String, Object>> getClassroomById(@PathVariable Long id) {
+        try {
+            Classroom classroom = classroomService.getActiveClassroom(id);
+            return ResponseEntity.ok(Map.of(
+                    "id", classroom.getId(),
+                    "name", classroom.getName(),
+                    "teacherId", classroom.getTeacherId(),
+                    "gradeLevel", classroom.getGradeLevel() != null ? classroom.getGradeLevel() : 0,
+                    "subject", classroom.getSubject() != null ? classroom.getSubject() : ""));
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/classrooms/{id}/check-access/{userId}")
+    public ResponseEntity<Map<String, Object>> checkAccess(@PathVariable Long id, @PathVariable Long userId) {
+        try {
+            Classroom classroom = classroomService.getActiveClassroom(id);
+            boolean isTeacher = classroom.getTeacherId().equals(userId);
+            
+            boolean isMember = false;
+            if (!isTeacher) {
+                try {
+                    classroomService.getRosterForMember(id, userId);
+                    isMember = true;
+                } catch (Exception ex) {
+                    isMember = false;
+                }
+            }
+            
+            return ResponseEntity.ok(Map.of(
+                    "hasAccess", isTeacher || isMember,
+                    "isTeacher", isTeacher,
+                    "isMember", isMember
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of("hasAccess", false, "error", e.getMessage()));
+        }
+    }
 }
