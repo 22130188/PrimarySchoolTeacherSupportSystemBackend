@@ -17,6 +17,7 @@ import vn.edu.primary.test.repository.TestRepository;
 import vn.edu.primary.test.dto.CreateTestRequest;
 import vn.edu.primary.test.dto.QuestionDTO;
 import vn.edu.primary.test.dto.TestResponse;
+import vn.edu.primary.test.dto.AttemptStatisticsDTO;
 import vn.edu.primary.test.security.JwtProvider;
 import vn.edu.primary.test.service.TestService;
 
@@ -202,32 +203,54 @@ public class TestController {
     }
 
     @GetMapping("/{testId}/attempts")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAttempts(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAttempts(
             @PathVariable Long testId,
             @RequestHeader(value = "Authorization", required = false) String token) {
         try {
             log.info("Fetching attempts for test: {}", testId);
             Long userId = null;
+            UserInfo userInfo = null;
             try {
-                userId = extractUserIdFromToken(token);
+                userInfo = resolveUserInfo(token);
+                if (userInfo != null) {
+                    userId = userInfo.getId();
+                    log.info("✓ Resolved user: id={}, username={}, role={}", userId, userInfo.getUsername(), userInfo.getRole());
+                }
             } catch (Exception e) {
+                log.warn("✗ Could not resolve user info: {}", e.getMessage());
             }
 
             var testOpt = testRepository.findById(testId);
-            List<Map<String, Object>> out = new ArrayList<>();
+            Map<String, Object> response = new HashMap<>();
+            
             if (testOpt.isPresent()) {
                 var test = testOpt.get();
                 if (test.getStartAt() != null && LocalDateTime.now().isBefore(test.getStartAt())) {
-                    Map<String, Object> info = new HashMap<>();
-                    info.put("message", "Chưa tới thời gian làm bài");
-                    info.put("isAvailable", false);
-                    info.put("startAt", test.getStartAt());
-                    out.add(info);
-                    return ResponseEntity.ok(ApiResponse.success("Attempts fetched", out));
+                    log.info("→ Test not yet available, returning empty attempts");
+                    response.put("message", "Chưa tới thời gian làm bài");
+                    response.put("isAvailable", false);
+                    response.put("startAt", test.getStartAt());
+                    response.put("attempts", new ArrayList<>());
+                    return ResponseEntity.ok(ApiResponse.success("Attempts fetched", response));
                 }
             }
 
-            List<vn.edu.primary.test.entity.TestAttempt> attempts = testAttemptRepository.findByTest_IdOrderByCreatedAtDesc(testId);
+            List<vn.edu.primary.test.entity.TestAttempt> attempts;
+            boolean isTeacher = userInfo != null && userInfo.getRole() != null && 
+                    (userInfo.getRole().equalsIgnoreCase("TEACHER") || userInfo.getRole().equalsIgnoreCase("ADMIN"));
+            
+            if (isTeacher) {
+                attempts = testAttemptRepository.findByTest_IdOrderByCreatedAtDesc(testId);
+                log.info("→ Teacher request: returning all attempts count={}", attempts.size());
+            } else if (userId != null) {
+                attempts = testAttemptRepository.findByTest_IdAndUserIdOrderByCreatedAtDesc(testId, userId);
+                log.info("→ Student request: returning attempts for userId={}, count={}", userId, attempts.size());
+            } else {
+                attempts = new ArrayList<>();
+                log.info("→ No user info, returning empty attempts");
+            }
+            
+            List<Map<String, Object>> attemptsList = new ArrayList<>();
 
             for (vn.edu.primary.test.entity.TestAttempt a : attempts) {
                 Map<String, Object> m = new HashMap<>();
@@ -249,10 +272,17 @@ public class TestController {
                         m.put("answersJson", a.getAnswersJson());
                     }
                 }
-                out.add(m);
+                attemptsList.add(m);
             }
 
-            return ResponseEntity.ok(ApiResponse.success("Attempts fetched", out));
+            vn.edu.primary.test.dto.AttemptStatisticsDTO statistics = calculateAttemptStatistics(attempts);
+            
+            response.put("statistics", statistics);
+            response.put("attempts", attemptsList);
+            response.put("isAvailable", true);
+            log.info("✓ Returning attempts response: statistics={}, attempts={}", statistics, attemptsList.size());
+
+            return ResponseEntity.ok(ApiResponse.success("Attempts fetched", response));
         } catch (Exception e) {
             log.error("Error fetching attempts", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -272,11 +302,22 @@ public class TestController {
 
                 Long resolvedUserId = null;
                 String resolvedUserName = null;
+                String userRole = null;
                 try {
                     var userInfo = resolveUserInfo(token);
                     resolvedUserId = userInfo.getId();
                     resolvedUserName = userInfo.getUsername();
-                } catch (Exception ignore) {}
+                    userRole = userInfo.getRole();
+                    log.info("✓ Resolved user: id={}, username={}, role={}", resolvedUserId, resolvedUserName, userRole);
+                } catch (Exception ignore) {
+                    log.warn("✗ Failed to resolve user info from token: {}", ignore.getMessage());
+                }
+
+                if (userRole != null && (userRole.equalsIgnoreCase("TEACHER") || userRole.equalsIgnoreCase("ADMIN"))) {
+                    log.warn("✗ Rejected: User with role '{}' cannot submit test answers. userId={}", userRole, resolvedUserId);
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(ApiResponse.error("Giáo viên không thể nộp bài kiểm tra. Chỉ xem lịch sử học sinh."));
+                }
 
                 if (resolvedUserId != null) {
                     var list = testAttemptRepository.findByTest_IdAndUserIdOrderByCreatedAtDesc(testId, resolvedUserId);
@@ -284,6 +325,7 @@ public class TestController {
                         for (var t : list) {
                             if (t.getIsSubmitted() == null || !t.getIsSubmitted()) {
                                 attempt = t;
+                                log.info("✓ Found existing unsubmitted attempt: id={}", t.getId());
                                 break;
                             }
                         }
@@ -295,6 +337,7 @@ public class TestController {
                             .userId(resolvedUserId)
                             .userName(resolvedUserName)
                             .build();
+                    log.info("→ Created new attempt with userId={}, userName={}", resolvedUserId, resolvedUserName);
                 }
 
                 try {
@@ -321,8 +364,13 @@ public class TestController {
                     var testOpt = testRepository.findById(testId);
                     if (testOpt.isPresent()) {
                         attempt.setTest(testOpt.get());
+                        log.info("✓ Set test for attempt: testId={}", testId);
+                    } else {
+                        log.warn("✗ Test not found: testId={}", testId);
                     }
-                } catch (Exception ignore) {}
+                } catch (Exception ignore) {
+                    log.warn("✗ Error finding test: {}", ignore.getMessage());
+                }
 
                 if (attempt.getCreatedAt() == null) attempt.setCreatedAt(java.time.LocalDateTime.now());
                 attempt.setUpdatedAt(java.time.LocalDateTime.now());
@@ -366,6 +414,8 @@ public class TestController {
                         : (attempt.getMaxScore() == null ? computedMaxScore : attempt.getMaxScore()));
 
                 attempt = testAttemptRepository.save(attempt);
+                log.info("✓ Saved attempt: id={}, userId={}, testId={}, score={}/{}", 
+                    attempt.getId(), attempt.getUserId(), testId, attempt.getScore(), attempt.getMaxScore());
 
                 Map<String, Object> result = new HashMap<>();
                 result.put("score", attempt.getScore());
@@ -377,7 +427,7 @@ public class TestController {
                 result.put("durationSeconds", attempt.getDurationSeconds());
                 return ResponseEntity.ok(ApiResponse.success("Submission received", result));
             } catch (Exception ex) {
-                log.warn("Attempt repository not available or error saving attempt: {}", ex.getMessage());
+                log.warn("Attempt repository not available or error saving attempt: {}", ex.getMessage(), ex);
                 Map<String, Object> result = new HashMap<>();
                 result.put("score", 0);
                 result.put("maxScore", payload != null && payload.get("maxScore") != null ? payload.get("maxScore") : 0);
@@ -576,11 +626,20 @@ public class TestController {
 
             Long resolvedUserId = null;
             String resolvedUserName = null;
+            String userRole = null;
             try {
                 var userInfo = resolveUserInfo(token);
                 resolvedUserId = userInfo.getId();
                 resolvedUserName = userInfo.getUsername();
+                userRole = userInfo.getRole();
+                log.info("→ Resolved user: id={}, username={}, role={}", resolvedUserId, resolvedUserName, userRole);
             } catch (Exception ignore) {}
+
+            if (userRole != null && (userRole.equalsIgnoreCase("TEACHER") || userRole.equalsIgnoreCase("ADMIN"))) {
+                log.warn("✗ Rejected: User with role '{}' cannot take tests. userId={}", userRole, resolvedUserId);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.error("Giáo viên không thể làm bài kiểm tra. Chỉ xem lịch sử học sinh."));
+            }
 
             var testOpt = testRepository.findById(testId);
             if (testOpt.isPresent()) {
@@ -1022,6 +1081,66 @@ public class TestController {
         public void setRole(String role) {
             this.role = role;
         }
+    }
+
+    private vn.edu.primary.test.dto.AttemptStatisticsDTO calculateAttemptStatistics(
+            List<vn.edu.primary.test.entity.TestAttempt> attempts) {
+        if (attempts == null || attempts.isEmpty()) {
+            return vn.edu.primary.test.dto.AttemptStatisticsDTO.builder()
+                    .totalAttempts(0)
+                    .completedAttempts(0)
+                    .averageScore(0.0)
+                    .averageScorePercentage(0.0)
+                    .maxScore(0)
+                    .minScore(0)
+                    .completionRate(0.0)
+                    .build();
+        }
+
+        int totalAttempts = attempts.size();
+        int completedAttempts = 0;
+        int maxScoreValue = 0;
+        int minScoreValue = Integer.MAX_VALUE;
+        int totalScore = 0;
+        int totalMaxScore = 0;
+
+        for (vn.edu.primary.test.entity.TestAttempt attempt : attempts) {
+            int score = attempt.getScore() == null ? 0 : attempt.getScore();
+            int maxScore = attempt.getMaxScore() == null ? 0 : attempt.getMaxScore();
+
+            totalScore += score;
+            totalMaxScore += maxScore;
+
+            if (Boolean.TRUE.equals(attempt.getIsSubmitted())) {
+                completedAttempts++;
+            }
+
+            if (score > maxScoreValue) {
+                maxScoreValue = score;
+            }
+            if (score < minScoreValue && score >= 0) {
+                minScoreValue = score;
+            }
+        }
+
+        double averageScore = totalAttempts > 0 ? (double) totalScore / totalAttempts : 0.0;
+        
+        double averageScorePercentage = 0.0;
+        if (totalAttempts > 0 && totalMaxScore > 0) {
+            averageScorePercentage = (averageScore / (totalMaxScore / (double) totalAttempts)) * 100.0;
+        }
+
+        double completionRate = totalAttempts > 0 ? (double) completedAttempts / totalAttempts * 100.0 : 0.0;
+
+        return vn.edu.primary.test.dto.AttemptStatisticsDTO.builder()
+                .totalAttempts(totalAttempts)
+                .completedAttempts(completedAttempts)
+                .averageScore(Math.round(averageScore * 100.0) / 100.0) // Làm tròn 2 chữ số thập phân
+                .averageScorePercentage(Math.round(averageScorePercentage * 100.0) / 100.0)
+                .maxScore(maxScoreValue)
+                .minScore(minScoreValue == Integer.MAX_VALUE ? 0 : minScoreValue)
+                .completionRate(Math.round(completionRate * 100.0) / 100.0)
+                .build();
     }
 
     private byte[] generateDocxFromRequest(CreateTestRequest request) {
