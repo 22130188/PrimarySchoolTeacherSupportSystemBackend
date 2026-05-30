@@ -41,7 +41,7 @@ public class Question {
     @Column(columnDefinition = "JSON")
     private String answersJson; 
 
-    @Column(name = "matching_pairs_json", columnDefinition = "JSON")
+    @Column(name = "matching_pairs_json", columnDefinition = "LONGTEXT")
     private String matchingPairsJson; 
 
     @Column(name = "text_with_blanks", columnDefinition = "LONGTEXT")

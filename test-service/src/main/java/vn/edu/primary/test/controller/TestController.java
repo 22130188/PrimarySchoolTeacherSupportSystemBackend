@@ -522,16 +522,19 @@ public class TestController {
                         }
                     }
                     if (question.getMatchingPairs() != null && mappings != null && mappings.size() == question.getMatchingPairs().size()) {
-                        boolean allCorrect = true;
+                        int correctCount = 0;
                         for (int i = 0; i < question.getMatchingPairs().size(); i++) {
                             String expected = question.getMatchingPairs().get(i).getRight();
                             String actual = mappings.get(i);
-                            if (expected == null || actual == null || !expected.trim().equalsIgnoreCase(actual.trim())) {
-                                allCorrect = false;
-                                break;
+                            if (expected != null && actual != null && expected.trim().equalsIgnoreCase(actual.trim())) {
+                                correctCount++;
                             }
                         }
-                        if (allCorrect) totalScore += questionPoints;
+                        int totalPairs = question.getMatchingPairs().size();
+                        double partialScore = (double) correctCount / totalPairs * questionPoints;
+                        int roundedScore = (int) Math.round(partialScore);
+                        totalScore += roundedScore;
+                        log.debug("Q{}: MATCHING {}/{} pairs correct, score={} (raw={})", question.getId(), correctCount, totalPairs, roundedScore, partialScore);
                     }
                 } else if ("FILL_IN_BLANK".equals(type)) {
                     List<String> submittedAnswers = null;
