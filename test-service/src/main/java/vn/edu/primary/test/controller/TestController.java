@@ -11,6 +11,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.MediaType;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import vn.edu.primary.test.dto.ApiResponse;
 import vn.edu.primary.test.repository.TestAttemptRepository;
 import vn.edu.primary.test.repository.TestRepository;
@@ -63,6 +67,9 @@ public class TestController {
 
     @Value("${gateway.api.url:http://localhost:8080/api}")
     private String gatewayApiUrl;
+
+    @Value("${speech.recognition.api.url:http://localhost:8086/api/pronunciation}")
+    private String speechRecognitionApiUrl;
 
     @Value("${user.service.url:http://localhost:8082/api}")
     private String userServiceUrl;
@@ -397,7 +404,8 @@ public class TestController {
                 } catch (Exception ignore) {}
 
                 int computedMaxScore = computeMaxScore(testData);
-                int computedScore = computeScore(testData, payload == null ? null : payload.get("answers"));
+                List<Map<String, Object>> audioEvaluations = new ArrayList<>();
+                int computedScore = computeScore(testData, payload == null ? null : payload.get("answers"), audioEvaluations);
 
                 if (payload != null && payload.get("score") != null) {
                     try {
@@ -425,6 +433,9 @@ public class TestController {
                 result.put("attemptId", attempt.getId());
                 result.put("durationMinutes", attempt.getDurationMinutes());
                 result.put("durationSeconds", attempt.getDurationSeconds());
+                if (!audioEvaluations.isEmpty()) {
+                    result.put("audioEvaluations", audioEvaluations);
+                }
                 return ResponseEntity.ok(ApiResponse.success("Submission received", result));
             } catch (Exception ex) {
                 log.warn("Attempt repository not available or error saving attempt: {}", ex.getMessage(), ex);
@@ -462,7 +473,7 @@ public class TestController {
                 .sum();
     }
 
-    private int computeScore(TestResponse testData, Object answersObj) {
+    private int computeScore(TestResponse testData, Object answersObj, List<Map<String, Object>> audioEvaluations) {
         if (testData == null || testData.getQuestions() == null || testData.getQuestions().isEmpty()) {
             return 0;
         }
@@ -559,6 +570,20 @@ public class TestController {
                         }
                         if (allCorrect) totalScore += questionPoints;
                     }
+                } else if ("AUDIO".equals(type)) {
+                    Map<String, Object> evaluation = evaluateAudioPronunciation(question, answer);
+                    if (evaluation != null) {
+                        audioEvaluations.add(evaluation);
+                        Object scoreAwarded = evaluation.get("scoreAwarded");
+                        if (scoreAwarded instanceof Number) {
+                            totalScore += ((Number) scoreAwarded).intValue();
+                        } else if (scoreAwarded != null) {
+                            try {
+                                totalScore += Integer.parseInt(scoreAwarded.toString());
+                            } catch (NumberFormatException ignore) {
+                            }
+                        }
+                    }
                 }
             } catch (Exception e) {
                 log.warn("Error scoring question {}: {}", question.getId(), e.getMessage());
@@ -586,6 +611,137 @@ public class TestController {
         } catch (Exception e) {
             log.warn("Unable to parse answers map", e);
             return new HashMap<>();
+        }
+    }
+
+    private Map<String, Object> evaluateAudioPronunciation(QuestionDTO question, Object answerObj) {
+        Map<String, Object> evaluation = new HashMap<>();
+        evaluation.put("questionId", question.getId());
+        evaluation.put("questionType", "AUDIO");
+        int questionPoints = question.getPoints() == null ? 1 : question.getPoints();
+        evaluation.put("pointsPossible", questionPoints);
+        evaluation.put("scoreAwarded", 0);
+        evaluation.put("passed", false);
+        evaluation.put("accuracyScore", null);
+        String audioUrl = extractAudioUrl(answerObj);
+        evaluation.put("audioUrl", audioUrl);
+        if (audioUrl == null || audioUrl.isBlank()) {
+            evaluation.put("message", "Không có audio để kiểm tra");
+            return evaluation;
+        }
+
+        String targetText = null;
+        if (question.getTranscript() != null && !question.getTranscript().isBlank()) targetText = question.getTranscript();
+        if ((targetText == null || targetText.isBlank()) && question.getPrompt() != null && !question.getPrompt().isBlank()) targetText = question.getPrompt();
+        if ((targetText == null || targetText.isBlank()) && question.getContent() != null && !question.getContent().isBlank()) targetText = question.getContent();
+        if ((targetText == null || targetText.isBlank()) && question.getAnswers() != null && !question.getAnswers().isEmpty()) {
+            for (var ans : question.getAnswers()) {
+                try {
+                    Boolean isCorrect = ans.getIsCorrect();
+                    if (Boolean.TRUE.equals(isCorrect)) {
+                        String text = null;
+                        try { text = ans.getContent(); } catch (Exception ignore) {}
+                        if (text == null || text.isBlank()) {
+                            try { text = ans.getLabel(); } catch (Exception ignore) {}
+                        }
+                        if (text != null && !text.isBlank()) {
+                            targetText = text;
+                            break;
+                        }
+                    }
+                } catch (Exception ignore) {}
+            }
+        }
+        evaluation.put("targetText", targetText);
+        if (targetText == null || targetText.isBlank()) {
+            evaluation.put("message", "Không có transcript / nội dung để so sánh");
+            return evaluation;
+        }
+
+        try {
+            byte[] audioBytes = restTemplate.getForObject(audioUrl, byte[].class);
+            if (audioBytes == null || audioBytes.length == 0) {
+                evaluation.put("message", "Không tải được file audio");
+                return evaluation;
+            }
+
+            ByteArrayResource audioResource = new ByteArrayResource(audioBytes) {
+                @Override
+                public String getFilename() {
+                    return "student-audio.wav";
+                }
+            };
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("target_text", targetText);
+            body.add("audio_file", audioResource);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+            String url = speechRecognitionApiUrl.endsWith("/") ? speechRecognitionApiUrl + "check" : speechRecognitionApiUrl + "/check";
+            String responseJson = restTemplate.postForObject(url, requestEntity, String.class);
+            if (responseJson == null) {
+                evaluation.put("message", "Dịch vụ kiểm tra phát âm không trả về dữ liệu");
+                return evaluation;
+            }
+
+            Map<String, Object> responseMap = objectMapper.readValue(responseJson, new TypeReference<Map<String, Object>>() {});
+            Map<String, Object> data = null;
+            if (responseMap.containsKey("data") && responseMap.get("data") instanceof Map) {
+                data = (Map<String, Object>) responseMap.get("data");
+            } else {
+                data = responseMap;
+            }
+            if (data != null) {
+                Object accuracyObj = data.get("accuracy_score");
+                String accuracyScore = accuracyObj == null ? null : accuracyObj.toString();
+                evaluation.put("accuracyScore", accuracyScore);
+                Object recognized = data.get("recognized_text");
+                if (recognized != null) {
+                    evaluation.put("recognizedText", recognized.toString());
+                }
+                Object feedback = data.get("feedback");
+                if (feedback != null) {
+                    evaluation.put("feedback", feedback.toString());
+                }
+                double accuracyValue = parseAccuracyScore(accuracyScore);
+                boolean passed = accuracyValue >= 80.0;
+                evaluation.put("passed", passed);
+                evaluation.put("scoreAwarded", passed ? questionPoints : 0);
+                evaluation.put("message", passed ? "Phát âm đạt full điểm" : "Phát âm chưa đạt, không cộng điểm");
+            }
+        } catch (Exception e) {
+            log.warn("Error checking pronunciation for question {}: {}", question.getId(), e.getMessage(), e);
+            evaluation.put("message", "Lỗi khi kiểm tra phát âm: " + e.getMessage());
+        }
+        return evaluation;
+    }
+
+    private String extractAudioUrl(Object answerObj) {
+        if (answerObj == null) return null;
+        if (answerObj instanceof String) {
+            return ((String) answerObj).trim();
+        }
+        if (answerObj instanceof Map) {
+            Map<?, ?> answerMap = (Map<?, ?>) answerObj;
+            for (String key : new String[]{"audio", "audioUrl", "url", "secure_url", "src"}) {
+                Object value = answerMap.get(key);
+                if (value instanceof String && !((String) value).isBlank()) {
+                    return ((String) value).trim();
+                }
+            }
+        }
+        return null;
+    }
+
+    private double parseAccuracyScore(String accuracyScore) {
+        if (accuracyScore == null) return 0.0;
+        try {
+            String cleaned = accuracyScore.replace("%", "").trim();
+            return Double.parseDouble(cleaned);
+        } catch (Exception e) {
+            return 0.0;
         }
     }
 
