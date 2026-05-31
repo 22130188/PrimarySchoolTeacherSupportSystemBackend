@@ -13,6 +13,7 @@ import vn.edu.primary.test.dto.MatchingPairDTO;
 import vn.edu.primary.test.dto.QuestionDTO;
 import vn.edu.primary.test.dto.TestResponse;
 import vn.edu.primary.test.entity.Question;
+import vn.edu.primary.test.entity.QuestionType;
 import vn.edu.primary.test.entity.Test;
 import vn.edu.primary.test.entity.TestStatus;
 import vn.edu.primary.test.entity.TestType;
@@ -93,6 +94,13 @@ public class TestServiceImpl implements TestService {
 
         Test savedTest = testRepository.save(test);
         log.info("Test created with id: {}", savedTest.getId());
+
+        for (QuestionDTO q : questionsList) {
+            QuestionType qType = q.getQuestionType();
+            if (qType == QuestionType.MATCHING) {
+                validateMatchingPairs(q);
+            }
+        }
 
         List<Question> questions = questionsList.stream()
                 .map((q) -> Question.builder()
@@ -215,6 +223,13 @@ public class TestServiceImpl implements TestService {
         Test updatedTest = testRepository.save(test);
 
         questionRepository.deleteAll(questionRepository.findByTestIdOrderByOrderIndexAsc(testId));
+
+        for (QuestionDTO q : request.getQuestions()) {
+            QuestionType qType = q.getQuestionType();
+            if (qType == QuestionType.MATCHING) {
+                validateMatchingPairs(q);
+            }
+        }
 
         List<Question> questions = request.getQuestions().stream()
                 .map((q) -> Question.builder()
@@ -566,5 +581,24 @@ public class TestServiceImpl implements TestService {
                 })
                 .map(this::convertToQuestionDTO)
                 .collect(Collectors.toList());
+    }
+
+
+    private void validateMatchingPairs(QuestionDTO question) {
+        if (question.getMatchingPairs() == null || question.getMatchingPairs().isEmpty()) {
+            throw new IllegalArgumentException("Matching question must have at least one pair");
+        }
+        
+        for (int i = 0; i < question.getMatchingPairs().size(); i++) {
+            MatchingPairDTO pair = question.getMatchingPairs().get(i);
+            if (pair.getLeft() == null || pair.getLeft().trim().isEmpty()) {
+                throw new IllegalArgumentException("Matching pair " + (i + 1) + " has empty left value");
+            }
+            if (pair.getRight() == null || pair.getRight().trim().isEmpty()) {
+                throw new IllegalArgumentException("Matching pair " + (i + 1) + " has empty right value");
+            }
+        }
+        
+        log.info("Validated {} matching pairs", question.getMatchingPairs().size());
     }
 }

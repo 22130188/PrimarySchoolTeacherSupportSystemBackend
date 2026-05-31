@@ -11,12 +11,17 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.MediaType;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import vn.edu.primary.test.dto.ApiResponse;
 import vn.edu.primary.test.repository.TestAttemptRepository;
 import vn.edu.primary.test.repository.TestRepository;
 import vn.edu.primary.test.dto.CreateTestRequest;
 import vn.edu.primary.test.dto.QuestionDTO;
 import vn.edu.primary.test.dto.TestResponse;
+import vn.edu.primary.test.dto.AttemptStatisticsDTO;
 import vn.edu.primary.test.security.JwtProvider;
 import vn.edu.primary.test.service.TestService;
 
@@ -62,6 +67,9 @@ public class TestController {
 
     @Value("${gateway.api.url:http://localhost:8080/api}")
     private String gatewayApiUrl;
+
+    @Value("${speech.recognition.api.url:http://localhost:8086/api/pronunciation}")
+    private String speechRecognitionApiUrl;
 
     @Value("${user.service.url:http://localhost:8082/api}")
     private String userServiceUrl;
@@ -202,32 +210,54 @@ public class TestController {
     }
 
     @GetMapping("/{testId}/attempts")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAttempts(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAttempts(
             @PathVariable Long testId,
             @RequestHeader(value = "Authorization", required = false) String token) {
         try {
             log.info("Fetching attempts for test: {}", testId);
             Long userId = null;
+            UserInfo userInfo = null;
             try {
-                userId = extractUserIdFromToken(token);
+                userInfo = resolveUserInfo(token);
+                if (userInfo != null) {
+                    userId = userInfo.getId();
+                    log.info("✓ Resolved user: id={}, username={}, role={}", userId, userInfo.getUsername(), userInfo.getRole());
+                }
             } catch (Exception e) {
+                log.warn("✗ Could not resolve user info: {}", e.getMessage());
             }
 
             var testOpt = testRepository.findById(testId);
-            List<Map<String, Object>> out = new ArrayList<>();
+            Map<String, Object> response = new HashMap<>();
+            
             if (testOpt.isPresent()) {
                 var test = testOpt.get();
                 if (test.getStartAt() != null && LocalDateTime.now().isBefore(test.getStartAt())) {
-                    Map<String, Object> info = new HashMap<>();
-                    info.put("message", "Chưa tới thời gian làm bài");
-                    info.put("isAvailable", false);
-                    info.put("startAt", test.getStartAt());
-                    out.add(info);
-                    return ResponseEntity.ok(ApiResponse.success("Attempts fetched", out));
+                    log.info("→ Test not yet available, returning empty attempts");
+                    response.put("message", "Chưa tới thời gian làm bài");
+                    response.put("isAvailable", false);
+                    response.put("startAt", test.getStartAt());
+                    response.put("attempts", new ArrayList<>());
+                    return ResponseEntity.ok(ApiResponse.success("Attempts fetched", response));
                 }
             }
 
-            List<vn.edu.primary.test.entity.TestAttempt> attempts = testAttemptRepository.findByTest_IdOrderByCreatedAtDesc(testId);
+            List<vn.edu.primary.test.entity.TestAttempt> attempts;
+            boolean isTeacher = userInfo != null && userInfo.getRole() != null && 
+                    (userInfo.getRole().equalsIgnoreCase("TEACHER") || userInfo.getRole().equalsIgnoreCase("ADMIN"));
+            
+            if (isTeacher) {
+                attempts = testAttemptRepository.findByTest_IdOrderByCreatedAtDesc(testId);
+                log.info("→ Teacher request: returning all attempts count={}", attempts.size());
+            } else if (userId != null) {
+                attempts = testAttemptRepository.findByTest_IdAndUserIdOrderByCreatedAtDesc(testId, userId);
+                log.info("→ Student request: returning attempts for userId={}, count={}", userId, attempts.size());
+            } else {
+                attempts = new ArrayList<>();
+                log.info("→ No user info, returning empty attempts");
+            }
+            
+            List<Map<String, Object>> attemptsList = new ArrayList<>();
 
             for (vn.edu.primary.test.entity.TestAttempt a : attempts) {
                 Map<String, Object> m = new HashMap<>();
@@ -249,10 +279,17 @@ public class TestController {
                         m.put("answersJson", a.getAnswersJson());
                     }
                 }
-                out.add(m);
+                attemptsList.add(m);
             }
 
-            return ResponseEntity.ok(ApiResponse.success("Attempts fetched", out));
+            vn.edu.primary.test.dto.AttemptStatisticsDTO statistics = calculateAttemptStatistics(attempts);
+            
+            response.put("statistics", statistics);
+            response.put("attempts", attemptsList);
+            response.put("isAvailable", true);
+            log.info("✓ Returning attempts response: statistics={}, attempts={}", statistics, attemptsList.size());
+
+            return ResponseEntity.ok(ApiResponse.success("Attempts fetched", response));
         } catch (Exception e) {
             log.error("Error fetching attempts", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -272,11 +309,22 @@ public class TestController {
 
                 Long resolvedUserId = null;
                 String resolvedUserName = null;
+                String userRole = null;
                 try {
                     var userInfo = resolveUserInfo(token);
                     resolvedUserId = userInfo.getId();
                     resolvedUserName = userInfo.getUsername();
-                } catch (Exception ignore) {}
+                    userRole = userInfo.getRole();
+                    log.info("✓ Resolved user: id={}, username={}, role={}", resolvedUserId, resolvedUserName, userRole);
+                } catch (Exception ignore) {
+                    log.warn("✗ Failed to resolve user info from token: {}", ignore.getMessage());
+                }
+
+                if (userRole != null && (userRole.equalsIgnoreCase("TEACHER") || userRole.equalsIgnoreCase("ADMIN"))) {
+                    log.warn("✗ Rejected: User with role '{}' cannot submit test answers. userId={}", userRole, resolvedUserId);
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(ApiResponse.error("Giáo viên không thể nộp bài kiểm tra. Chỉ xem lịch sử học sinh."));
+                }
 
                 if (resolvedUserId != null) {
                     var list = testAttemptRepository.findByTest_IdAndUserIdOrderByCreatedAtDesc(testId, resolvedUserId);
@@ -284,6 +332,7 @@ public class TestController {
                         for (var t : list) {
                             if (t.getIsSubmitted() == null || !t.getIsSubmitted()) {
                                 attempt = t;
+                                log.info("✓ Found existing unsubmitted attempt: id={}", t.getId());
                                 break;
                             }
                         }
@@ -295,6 +344,7 @@ public class TestController {
                             .userId(resolvedUserId)
                             .userName(resolvedUserName)
                             .build();
+                    log.info("→ Created new attempt with userId={}, userName={}", resolvedUserId, resolvedUserName);
                 }
 
                 try {
@@ -321,8 +371,13 @@ public class TestController {
                     var testOpt = testRepository.findById(testId);
                     if (testOpt.isPresent()) {
                         attempt.setTest(testOpt.get());
+                        log.info("✓ Set test for attempt: testId={}", testId);
+                    } else {
+                        log.warn("✗ Test not found: testId={}", testId);
                     }
-                } catch (Exception ignore) {}
+                } catch (Exception ignore) {
+                    log.warn("✗ Error finding test: {}", ignore.getMessage());
+                }
 
                 if (attempt.getCreatedAt() == null) attempt.setCreatedAt(java.time.LocalDateTime.now());
                 attempt.setUpdatedAt(java.time.LocalDateTime.now());
@@ -349,7 +404,8 @@ public class TestController {
                 } catch (Exception ignore) {}
 
                 int computedMaxScore = computeMaxScore(testData);
-                int computedScore = computeScore(testData, payload == null ? null : payload.get("answers"));
+                List<Map<String, Object>> audioEvaluations = new ArrayList<>();
+                int computedScore = computeScore(testData, payload == null ? null : payload.get("answers"), audioEvaluations);
 
                 if (payload != null && payload.get("score") != null) {
                     try {
@@ -366,6 +422,8 @@ public class TestController {
                         : (attempt.getMaxScore() == null ? computedMaxScore : attempt.getMaxScore()));
 
                 attempt = testAttemptRepository.save(attempt);
+                log.info("✓ Saved attempt: id={}, userId={}, testId={}, score={}/{}", 
+                    attempt.getId(), attempt.getUserId(), testId, attempt.getScore(), attempt.getMaxScore());
 
                 Map<String, Object> result = new HashMap<>();
                 result.put("score", attempt.getScore());
@@ -375,9 +433,12 @@ public class TestController {
                 result.put("attemptId", attempt.getId());
                 result.put("durationMinutes", attempt.getDurationMinutes());
                 result.put("durationSeconds", attempt.getDurationSeconds());
+                if (!audioEvaluations.isEmpty()) {
+                    result.put("audioEvaluations", audioEvaluations);
+                }
                 return ResponseEntity.ok(ApiResponse.success("Submission received", result));
             } catch (Exception ex) {
-                log.warn("Attempt repository not available or error saving attempt: {}", ex.getMessage());
+                log.warn("Attempt repository not available or error saving attempt: {}", ex.getMessage(), ex);
                 Map<String, Object> result = new HashMap<>();
                 result.put("score", 0);
                 result.put("maxScore", payload != null && payload.get("maxScore") != null ? payload.get("maxScore") : 0);
@@ -412,7 +473,7 @@ public class TestController {
                 .sum();
     }
 
-    private int computeScore(TestResponse testData, Object answersObj) {
+    private int computeScore(TestResponse testData, Object answersObj, List<Map<String, Object>> audioEvaluations) {
         if (testData == null || testData.getQuestions() == null || testData.getQuestions().isEmpty()) {
             return 0;
         }
@@ -472,16 +533,19 @@ public class TestController {
                         }
                     }
                     if (question.getMatchingPairs() != null && mappings != null && mappings.size() == question.getMatchingPairs().size()) {
-                        boolean allCorrect = true;
+                        int correctCount = 0;
                         for (int i = 0; i < question.getMatchingPairs().size(); i++) {
                             String expected = question.getMatchingPairs().get(i).getRight();
                             String actual = mappings.get(i);
-                            if (expected == null || actual == null || !expected.trim().equalsIgnoreCase(actual.trim())) {
-                                allCorrect = false;
-                                break;
+                            if (expected != null && actual != null && expected.trim().equalsIgnoreCase(actual.trim())) {
+                                correctCount++;
                             }
                         }
-                        if (allCorrect) totalScore += questionPoints;
+                        int totalPairs = question.getMatchingPairs().size();
+                        double partialScore = (double) correctCount / totalPairs * questionPoints;
+                        int roundedScore = (int) Math.round(partialScore);
+                        totalScore += roundedScore;
+                        log.debug("Q{}: MATCHING {}/{} pairs correct, score={} (raw={})", question.getId(), correctCount, totalPairs, roundedScore, partialScore);
                     }
                 } else if ("FILL_IN_BLANK".equals(type)) {
                     List<String> submittedAnswers = null;
@@ -505,6 +569,20 @@ public class TestController {
                             }
                         }
                         if (allCorrect) totalScore += questionPoints;
+                    }
+                } else if ("AUDIO".equals(type)) {
+                    Map<String, Object> evaluation = evaluateAudioPronunciation(question, answer);
+                    if (evaluation != null) {
+                        audioEvaluations.add(evaluation);
+                        Object scoreAwarded = evaluation.get("scoreAwarded");
+                        if (scoreAwarded instanceof Number) {
+                            totalScore += ((Number) scoreAwarded).intValue();
+                        } else if (scoreAwarded != null) {
+                            try {
+                                totalScore += Integer.parseInt(scoreAwarded.toString());
+                            } catch (NumberFormatException ignore) {
+                            }
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -533,6 +611,137 @@ public class TestController {
         } catch (Exception e) {
             log.warn("Unable to parse answers map", e);
             return new HashMap<>();
+        }
+    }
+
+    private Map<String, Object> evaluateAudioPronunciation(QuestionDTO question, Object answerObj) {
+        Map<String, Object> evaluation = new HashMap<>();
+        evaluation.put("questionId", question.getId());
+        evaluation.put("questionType", "AUDIO");
+        int questionPoints = question.getPoints() == null ? 1 : question.getPoints();
+        evaluation.put("pointsPossible", questionPoints);
+        evaluation.put("scoreAwarded", 0);
+        evaluation.put("passed", false);
+        evaluation.put("accuracyScore", null);
+        String audioUrl = extractAudioUrl(answerObj);
+        evaluation.put("audioUrl", audioUrl);
+        if (audioUrl == null || audioUrl.isBlank()) {
+            evaluation.put("message", "Không có audio để kiểm tra");
+            return evaluation;
+        }
+
+        String targetText = null;
+        if (question.getTranscript() != null && !question.getTranscript().isBlank()) targetText = question.getTranscript();
+        if ((targetText == null || targetText.isBlank()) && question.getPrompt() != null && !question.getPrompt().isBlank()) targetText = question.getPrompt();
+        if ((targetText == null || targetText.isBlank()) && question.getContent() != null && !question.getContent().isBlank()) targetText = question.getContent();
+        if ((targetText == null || targetText.isBlank()) && question.getAnswers() != null && !question.getAnswers().isEmpty()) {
+            for (var ans : question.getAnswers()) {
+                try {
+                    Boolean isCorrect = ans.getIsCorrect();
+                    if (Boolean.TRUE.equals(isCorrect)) {
+                        String text = null;
+                        try { text = ans.getContent(); } catch (Exception ignore) {}
+                        if (text == null || text.isBlank()) {
+                            try { text = ans.getLabel(); } catch (Exception ignore) {}
+                        }
+                        if (text != null && !text.isBlank()) {
+                            targetText = text;
+                            break;
+                        }
+                    }
+                } catch (Exception ignore) {}
+            }
+        }
+        evaluation.put("targetText", targetText);
+        if (targetText == null || targetText.isBlank()) {
+            evaluation.put("message", "Không có transcript / nội dung để so sánh");
+            return evaluation;
+        }
+
+        try {
+            byte[] audioBytes = restTemplate.getForObject(audioUrl, byte[].class);
+            if (audioBytes == null || audioBytes.length == 0) {
+                evaluation.put("message", "Không tải được file audio");
+                return evaluation;
+            }
+
+            ByteArrayResource audioResource = new ByteArrayResource(audioBytes) {
+                @Override
+                public String getFilename() {
+                    return "student-audio.wav";
+                }
+            };
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("target_text", targetText);
+            body.add("audio_file", audioResource);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+            String url = speechRecognitionApiUrl.endsWith("/") ? speechRecognitionApiUrl + "check" : speechRecognitionApiUrl + "/check";
+            String responseJson = restTemplate.postForObject(url, requestEntity, String.class);
+            if (responseJson == null) {
+                evaluation.put("message", "Dịch vụ kiểm tra phát âm không trả về dữ liệu");
+                return evaluation;
+            }
+
+            Map<String, Object> responseMap = objectMapper.readValue(responseJson, new TypeReference<Map<String, Object>>() {});
+            Map<String, Object> data = null;
+            if (responseMap.containsKey("data") && responseMap.get("data") instanceof Map) {
+                data = (Map<String, Object>) responseMap.get("data");
+            } else {
+                data = responseMap;
+            }
+            if (data != null) {
+                Object accuracyObj = data.get("accuracy_score");
+                String accuracyScore = accuracyObj == null ? null : accuracyObj.toString();
+                evaluation.put("accuracyScore", accuracyScore);
+                Object recognized = data.get("recognized_text");
+                if (recognized != null) {
+                    evaluation.put("recognizedText", recognized.toString());
+                }
+                Object feedback = data.get("feedback");
+                if (feedback != null) {
+                    evaluation.put("feedback", feedback.toString());
+                }
+                double accuracyValue = parseAccuracyScore(accuracyScore);
+                boolean passed = accuracyValue >= 80.0;
+                evaluation.put("passed", passed);
+                evaluation.put("scoreAwarded", passed ? questionPoints : 0);
+                evaluation.put("message", passed ? "Phát âm đạt full điểm" : "Phát âm chưa đạt, không cộng điểm");
+            }
+        } catch (Exception e) {
+            log.warn("Error checking pronunciation for question {}: {}", question.getId(), e.getMessage(), e);
+            evaluation.put("message", "Lỗi khi kiểm tra phát âm: " + e.getMessage());
+        }
+        return evaluation;
+    }
+
+    private String extractAudioUrl(Object answerObj) {
+        if (answerObj == null) return null;
+        if (answerObj instanceof String) {
+            return ((String) answerObj).trim();
+        }
+        if (answerObj instanceof Map) {
+            Map<?, ?> answerMap = (Map<?, ?>) answerObj;
+            for (String key : new String[]{"audio", "audioUrl", "url", "secure_url", "src"}) {
+                Object value = answerMap.get(key);
+                if (value instanceof String && !((String) value).isBlank()) {
+                    return ((String) value).trim();
+                }
+            }
+        }
+        return null;
+    }
+
+    private double parseAccuracyScore(String accuracyScore) {
+        if (accuracyScore == null) return 0.0;
+        try {
+            String cleaned = accuracyScore.replace("%", "").trim();
+            return Double.parseDouble(cleaned);
+        } catch (Exception e) {
+            return 0.0;
         }
     }
 
@@ -576,11 +785,20 @@ public class TestController {
 
             Long resolvedUserId = null;
             String resolvedUserName = null;
+            String userRole = null;
             try {
                 var userInfo = resolveUserInfo(token);
                 resolvedUserId = userInfo.getId();
                 resolvedUserName = userInfo.getUsername();
+                userRole = userInfo.getRole();
+                log.info("→ Resolved user: id={}, username={}, role={}", resolvedUserId, resolvedUserName, userRole);
             } catch (Exception ignore) {}
+
+            if (userRole != null && (userRole.equalsIgnoreCase("TEACHER") || userRole.equalsIgnoreCase("ADMIN"))) {
+                log.warn("✗ Rejected: User with role '{}' cannot take tests. userId={}", userRole, resolvedUserId);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.error("Giáo viên không thể làm bài kiểm tra. Chỉ xem lịch sử học sinh."));
+            }
 
             var testOpt = testRepository.findById(testId);
             if (testOpt.isPresent()) {
@@ -1022,6 +1240,66 @@ public class TestController {
         public void setRole(String role) {
             this.role = role;
         }
+    }
+
+    private vn.edu.primary.test.dto.AttemptStatisticsDTO calculateAttemptStatistics(
+            List<vn.edu.primary.test.entity.TestAttempt> attempts) {
+        if (attempts == null || attempts.isEmpty()) {
+            return vn.edu.primary.test.dto.AttemptStatisticsDTO.builder()
+                    .totalAttempts(0)
+                    .completedAttempts(0)
+                    .averageScore(0.0)
+                    .averageScorePercentage(0.0)
+                    .maxScore(0)
+                    .minScore(0)
+                    .completionRate(0.0)
+                    .build();
+        }
+
+        int totalAttempts = attempts.size();
+        int completedAttempts = 0;
+        int maxScoreValue = 0;
+        int minScoreValue = Integer.MAX_VALUE;
+        int totalScore = 0;
+        int totalMaxScore = 0;
+
+        for (vn.edu.primary.test.entity.TestAttempt attempt : attempts) {
+            int score = attempt.getScore() == null ? 0 : attempt.getScore();
+            int maxScore = attempt.getMaxScore() == null ? 0 : attempt.getMaxScore();
+
+            totalScore += score;
+            totalMaxScore += maxScore;
+
+            if (Boolean.TRUE.equals(attempt.getIsSubmitted())) {
+                completedAttempts++;
+            }
+
+            if (score > maxScoreValue) {
+                maxScoreValue = score;
+            }
+            if (score < minScoreValue && score >= 0) {
+                minScoreValue = score;
+            }
+        }
+
+        double averageScore = totalAttempts > 0 ? (double) totalScore / totalAttempts : 0.0;
+        
+        double averageScorePercentage = 0.0;
+        if (totalAttempts > 0 && totalMaxScore > 0) {
+            averageScorePercentage = (averageScore / (totalMaxScore / (double) totalAttempts)) * 100.0;
+        }
+
+        double completionRate = totalAttempts > 0 ? (double) completedAttempts / totalAttempts * 100.0 : 0.0;
+
+        return vn.edu.primary.test.dto.AttemptStatisticsDTO.builder()
+                .totalAttempts(totalAttempts)
+                .completedAttempts(completedAttempts)
+                .averageScore(Math.round(averageScore * 100.0) / 100.0) // Làm tròn 2 chữ số thập phân
+                .averageScorePercentage(Math.round(averageScorePercentage * 100.0) / 100.0)
+                .maxScore(maxScoreValue)
+                .minScore(minScoreValue == Integer.MAX_VALUE ? 0 : minScoreValue)
+                .completionRate(Math.round(completionRate * 100.0) / 100.0)
+                .build();
     }
 
     private byte[] generateDocxFromRequest(CreateTestRequest request) {
