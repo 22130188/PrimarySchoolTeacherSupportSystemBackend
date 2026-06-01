@@ -66,6 +66,11 @@ spring:
           predicates:
             - Path=/api/lessons/**
 
+        - id: textbook-service
+          uri: lb://textbook-service
+          predicates:
+            - Path=/api/textbooks/**
+
 eureka:
   client:
     service-url:
