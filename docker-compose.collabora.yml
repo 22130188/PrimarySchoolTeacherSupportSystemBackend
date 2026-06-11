@@ -1,0 +1,12 @@
+services:
+  collabora:
+    image: collabora/code:latest
+    container_name: teacher_support_collabora
+    ports:
+      - "9980:9980"
+    environment:
+      - extra_params=--o:ssl.enable=false --o:ssl.termination=false --o:welcome.enable=false
+      - aliasgroup1=http://host\.docker\.internal:8087
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
