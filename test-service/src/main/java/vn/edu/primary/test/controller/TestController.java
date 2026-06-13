@@ -22,7 +22,9 @@ import vn.edu.primary.test.dto.CreateTestRequest;
 import vn.edu.primary.test.dto.QuestionDTO;
 import vn.edu.primary.test.dto.TestResponse;
 import vn.edu.primary.test.dto.AttemptStatisticsDTO;
+import vn.edu.primary.test.dto.LessonContentDto;
 import vn.edu.primary.test.security.JwtProvider;
+import vn.edu.primary.test.service.LessonContentService;
 import vn.edu.primary.test.service.TestService;
 
 import java.util.List;
@@ -56,6 +58,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 public class TestController {
 
     private final TestService testService;
+    private final LessonContentService lessonContentService;
     private final JwtProvider jwtProvider;
     private final RestTemplate restTemplate;
     private final TestAttemptRepository testAttemptRepository;
@@ -842,78 +845,78 @@ public class TestController {
     }
 
     @GetMapping("/lesson-contents")
-    public ResponseEntity<ApiResponse<List<Map<String, String>>>> getLessonContents() {
+    public ResponseEntity<ApiResponse<List<LessonContentDto>>> getLessonContents() {
         try {
-            Path dbDir = Paths.get("database");
-            if (!Files.exists(dbDir) || !Files.isDirectory(dbDir)) {
-                return ResponseEntity.ok(ApiResponse.success("No database directory found", new ArrayList<>()));
-            }
-
-            Optional<Path> excelFile = Files.list(dbDir)
-                    .filter(p -> p.toString().toLowerCase().endsWith(".xlsx") || p.toString().toLowerCase().endsWith(".xls"))
-                    .findFirst();
-
-            if (!excelFile.isPresent()) {
-                return ResponseEntity.ok(ApiResponse.success("No excel file found", new ArrayList<>()));
-            }
-
-            List<Map<String, String>> results = new ArrayList<>();
-
-            try (InputStream is = new FileInputStream(excelFile.get().toFile())) {
-                Workbook workbook = WorkbookFactory.create(is);
-                Sheet sheet = workbook.getSheetAt(0);
-
-                int headerRowIdx = -1;
-                int maxHeaderSearch = Math.min(10, sheet.getLastRowNum() + 1);
-                for (int r = 0; r < maxHeaderSearch; r++) {
-                    Row row = sheet.getRow(r);
-                    if (row == null) continue;
-                    for (Cell cell : row) {
-                        String txt = cell.toString().toLowerCase();
-                        if (txt.contains("môn") || txt.contains("mon") || txt.contains("môn học")) {
-                            headerRowIdx = r;
-                            break;
-                        }
-                    }
-                    if (headerRowIdx >= 0) break;
-                }
-
-                int subjectCol = 0;
-                int gradeCol = 1;
-                int nameCol = 3;
-
-                if (headerRowIdx >= 0) {
-                    Row header = sheet.getRow(headerRowIdx);
-                    for (Cell cell : header) {
-                        String txt = cell.toString().toLowerCase();
-                        int c = cell.getColumnIndex();
-                        if (txt.contains("môn") || txt.contains("môn học") || txt.contains("mon")) subjectCol = c;
-                        if (txt.contains("lớp") || txt.contains("lop") || txt.contains("lớp học")) gradeCol = c;
-                        if (txt.contains("bài") || txt.contains("nội dung") || txt.contains("bài học") || txt.contains("nội dung chính")) nameCol = c;
-                    }
-                }
-
-                int startRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 1;
-                for (int r = startRow; r <= sheet.getLastRowNum(); r++) {
-                    Row row = sheet.getRow(r);
-                    if (row == null) continue;
-                    String subject = getCellString(row, subjectCol);
-                    String grade = getCellString(row, gradeCol);
-                    String name = getCellString(row, nameCol);
-                    if ((subject == null || subject.isBlank()) && (grade == null || grade.isBlank()) && (name == null || name.isBlank())) continue;
-                    Map<String, String> item = new HashMap<>();
-                    item.put("subject", subject == null ? "" : subject);
-                    item.put("grade", grade == null ? "" : grade);
-                    item.put("name", name == null ? "" : name);
-                    results.add(item);
-                }
-            }
-
-            return ResponseEntity.ok(ApiResponse.success("Lesson contents loaded", results));
+            List<LessonContentDto> contents = lessonContentService.getActiveLessonContents();
+            return ResponseEntity.ok(ApiResponse.success("Lesson contents loaded", contents));
         } catch (Exception e) {
             log.error("Error loading lesson contents", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Error reading lesson contents: " + e.getMessage()));
+                    .body(ApiResponse.error("Error loading lesson contents: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/admin/lesson-contents")
+    public ResponseEntity<ApiResponse<List<LessonContentDto>>> adminGetLessonContents(
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            UserInfo userInfo = resolveUserInfo(token);
+            validateAdminUser(userInfo);
+            List<LessonContentDto> contents = lessonContentService.getAllLessonContents();
+            return ResponseEntity.ok(ApiResponse.success("Lesson contents loaded", contents));
+        } catch (Exception e) {
+            log.error("Error loading admin lesson contents", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error loading admin lesson contents: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/admin/lesson-contents")
+    public ResponseEntity<ApiResponse<LessonContentDto>> createLessonContent(
+            @RequestBody LessonContentDto request,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            UserInfo userInfo = resolveUserInfo(token);
+            validateAdminUser(userInfo);
+            LessonContentDto created = lessonContentService.createLessonContent(request, userInfo.getId());
+            return ResponseEntity.ok(ApiResponse.success("Lesson content created successfully", created));
+        } catch (Exception e) {
+            log.error("Error creating lesson content", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error creating lesson content: " + e.getMessage()));
+        }
+    }
+
+    @PutMapping("/admin/lesson-contents/{contentId}")
+    public ResponseEntity<ApiResponse<LessonContentDto>> updateLessonContent(
+            @PathVariable Long contentId,
+            @RequestBody LessonContentDto request,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            UserInfo userInfo = resolveUserInfo(token);
+            validateAdminUser(userInfo);
+            LessonContentDto updated = lessonContentService.updateLessonContent(contentId, request, userInfo.getId());
+            return ResponseEntity.ok(ApiResponse.success("Lesson content updated successfully", updated));
+        } catch (Exception e) {
+            log.error("Error updating lesson content", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error updating lesson content: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/admin/lesson-contents/{contentId}")
+    public ResponseEntity<ApiResponse<Void>> deleteLessonContent(
+            @PathVariable Long contentId,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            UserInfo userInfo = resolveUserInfo(token);
+            validateAdminUser(userInfo);
+            lessonContentService.deleteLessonContent(contentId);
+            return ResponseEntity.ok(ApiResponse.success("Lesson content deleted successfully", null));
+        } catch (Exception e) {
+            log.error("Error deleting lesson content", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Error deleting lesson content: " + e.getMessage()));
         }
     }
 
@@ -1113,6 +1116,17 @@ public class TestController {
         }
 
         throw new RuntimeException("Unable to resolve user info from token");
+    }
+
+    private void validateAdminUser(UserInfo userInfo) {
+        if (userInfo == null) {
+            throw new RuntimeException("Unauthorized: unable to resolve user info");
+        }
+        boolean isAdmin = (userInfo.getRoleId() != null && userInfo.getRoleId() == 3)
+                || (userInfo.getRole() != null && userInfo.getRole().equalsIgnoreCase("ADMIN"));
+        if (!isAdmin) {
+            throw new RuntimeException("Access denied: admin role required");
+        }
     }
 
     private UserInfo fetchUserInfoFromGateway(String authorizationHeader) {
