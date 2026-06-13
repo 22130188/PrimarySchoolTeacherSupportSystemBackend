@@ -19,6 +19,8 @@ public class AuthService {
     private final PasswordEncoder  passwordEncoder;
     private final JwtService       jwtService;
 
+    private static final Set<String> ALLOWED_SUBJECTS = Set.of("Toán", "Tiếng Việt", "Tiếng Anh");
+
     public AuthService(UserRepository userRepository,
                        RoleRepository roleRepository,
                        PasswordEncoder passwordEncoder,
@@ -75,6 +77,9 @@ public class AuthService {
                 Set<TeacherClass> teacherClasses = new HashSet<>();
                 for (RegisterRequest.TeacherClassDto dto : req.getClasses()) {
                     if (dto.getGrade() != null && dto.getSubject() != null) {
+                        if (!ALLOWED_SUBJECTS.contains(dto.getSubject())) {
+                            throw new RuntimeException("Môn học không hợp lệ: " + dto.getSubject());
+                        }
                         teacherClasses.add(new TeacherClass(saved, dto.getGrade(), dto.getSubject()));
                     }
                 }
