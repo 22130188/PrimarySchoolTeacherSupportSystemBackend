@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import vn.edu.primary.teacher_support.dto.AdminDraftResponse;
 import vn.edu.primary.teacher_support.dto.DraftResponse;
 import vn.edu.primary.teacher_support.dto.SaveDraftRequest;
+import vn.edu.primary.teacher_support.dto.UpdateDraftMetadataRequest;
 import vn.edu.primary.teacher_support.dto.UpdateDraftStatusRequest;
 import vn.edu.primary.teacher_support.service.AuthHelper;
 import vn.edu.primary.teacher_support.service.LessonDraftService;
@@ -72,6 +73,15 @@ public class LessonDraftController {
             @Valid @RequestBody UpdateDraftStatusRequest request) {
         Long userId = authHelper.extractUserId(authorization);
         return ResponseEntity.ok(draftService.updateStatus(id, userId, request.getStatus()));
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<DraftResponse> updateMetadata(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateDraftMetadataRequest request) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(draftService.updateMetadata(id, userId, request));
     }
 
     @GetMapping("/admin/all")
