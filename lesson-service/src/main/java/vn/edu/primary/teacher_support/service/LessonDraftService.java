@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import vn.edu.primary.teacher_support.dto.AdminDraftResponse;
 import vn.edu.primary.teacher_support.dto.DraftResponse;
 import vn.edu.primary.teacher_support.dto.SaveDraftRequest;
+import vn.edu.primary.teacher_support.dto.UpdateDraftMetadataRequest;
 import vn.edu.primary.teacher_support.entity.LessonDraft;
 import vn.edu.primary.teacher_support.entity.enums.LessonDraftStatus;
 import vn.edu.primary.teacher_support.exception.ResourceNotFoundException;
@@ -92,6 +93,16 @@ public class LessonDraftService {
                 .createdAt(draft.getCreatedAt())
                 .updatedAt(draft.getUpdatedAt())
                 .build();
+    }
+
+    public DraftResponse updateMetadata(Long id, Long userId, UpdateDraftMetadataRequest request) {
+        LessonDraft draft = draftRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bản nháp với id: " + id));
+        draft.setTitle(request.getTitle());
+        draft.setSubject(request.getSubject());
+        draft.setGrade(request.getGrade());
+        draft = draftRepository.save(draft);
+        return toSummaryResponse(draft);
     }
 
     public List<AdminDraftResponse> getAllDraftsForAdmin() {

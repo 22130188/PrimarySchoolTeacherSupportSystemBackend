@@ -34,6 +34,13 @@ public class AuthHelper {
         }
     }
 
+    public void validateAdmin(String authorization) {
+        String role = extractRole(authorization);
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            throw new ForbiddenException("Chi admin moi co quyen thuc hien");
+        }
+    }
+
     private String resolveToken(String authorization) {
         if (authorization != null && authorization.startsWith("Bearer ")) {
             return authorization.substring(7);

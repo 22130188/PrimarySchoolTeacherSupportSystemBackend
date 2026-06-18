@@ -63,6 +63,7 @@ public class UserManagementService {
 
         Set<Role> roles = new HashSet<>();
         roles.add(role);
+        user.setRole(roleName);
         user.setRoles(roles);
 
         User saved = userRepository.save(user);
@@ -121,6 +122,7 @@ public class UserManagementService {
             Role newRole = roleRepository.findByName(newRoleName)
                     .orElseThrow(() -> new RuntimeException("Role không tồn tại: " + req.getRole()));
 
+            user.setRole(newRoleName);
             user.getRoles().clear();
             user.getRoles().add(newRole);
         } else {

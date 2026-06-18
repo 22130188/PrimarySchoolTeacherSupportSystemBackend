@@ -58,6 +58,7 @@ public class AuthService {
 
         Set<Role> roles = new HashSet<>();
         roles.add(role);
+        user.setRole(roleName);
         user.setRoles(roles);
 
         // Lưu user trước để có ID
