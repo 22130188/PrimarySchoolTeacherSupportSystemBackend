@@ -18,12 +18,15 @@ import vn.edu.primary.teacher_support.dto.DraftResponse;
 import vn.edu.primary.teacher_support.entity.LessonClassroomShare;
 import vn.edu.primary.teacher_support.entity.LessonDraft;
 import vn.edu.primary.teacher_support.entity.LessonShare;
+import vn.edu.primary.teacher_support.entity.LessonTemplate;
+import vn.edu.primary.teacher_support.entity.enums.LessonTemplateStatus;
 import vn.edu.primary.teacher_support.exception.BusinessException;
 import vn.edu.primary.teacher_support.exception.ForbiddenException;
 import vn.edu.primary.teacher_support.exception.ResourceNotFoundException;
 import vn.edu.primary.teacher_support.repository.LessonClassroomShareRepository;
 import vn.edu.primary.teacher_support.repository.LessonShareRepository;
 import vn.edu.primary.teacher_support.repository.LessonDraftRepository;
+import vn.edu.primary.teacher_support.repository.LessonTemplateRepository;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -51,6 +54,7 @@ public class CollaboraSessionService {
     private final LessonClassroomShareRepository classroomShareRepository;
     private final LessonShareRepository lessonShareRepository;
     private final ClassroomServiceClient classroomServiceClient;
+    private final LessonTemplateRepository templateRepository;
     private final SupabaseStorageService supabaseStorageService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newHttpClient();
@@ -98,6 +102,54 @@ public class CollaboraSessionService {
         }
     }
 
+    public DraftResponse uploadDraft(Long userId, MultipartFile file, String title, String subject, String grade) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("Vui long chon file de tai len");
+        }
+        if (title == null || title.isBlank()) {
+            throw new BusinessException("Tieu de khong duoc de trong");
+        }
+        if (subject == null || subject.isBlank()) {
+            throw new BusinessException("Mon hoc khong duoc de trong");
+        }
+        if (grade == null || grade.isBlank()) {
+            throw new BusinessException("Lop khong duoc de trong");
+        }
+
+        String originalName = file.getOriginalFilename();
+        String extension = extensionFromFileName(originalName);
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+            throw new BusinessException("Collabora chi ho tro file .docx hoac .pptx");
+        }
+
+        String type = "pptx".equals(extension) ? "COLLABORA_PPTX" : "COLLABORA_DOCX";
+        String fileId = "lesson-" + userId + "-" + UUID.randomUUID() + "." + extension;
+        String fileName = safeFileName(title, extension);
+
+        try {
+            supabaseStorageService.uploadFile(fileId, file.getBytes(), contentType(extension));
+
+            LessonDraft draft = LessonDraft.builder()
+                    .userId(userId)
+                    .title(stripExtension(fileName, extension))
+                    .subject(subject)
+                    .grade(grade)
+                    .type(type)
+                    .canvasJson(objectMapper.writeValueAsString(Map.of(
+                            "collaboraFileId", fileId,
+                            "fileName", fileName,
+                            "extension", extension
+                    )))
+                    .build();
+            draft = draftRepository.save(draft);
+            return toResponse(draft);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException("Khong the tai file Collabora len Supabase: " + e.getMessage());
+        }
+    }
+
     public CollaboraEditorSessionResponse getEditorSession(Long userId, Long draftId) {
         LessonDraft ownedDraft = draftRepository.findByIdAndUserId(draftId, userId).orElse(null);
         if (ownedDraft != null) {
@@ -138,6 +190,18 @@ public class CollaboraSessionService {
         return buildEditorSession(userId, draftId, draft, canWrite, canWrite);
     }
 
+    public CollaboraEditorSessionResponse getTemplateEditorSession(Long userId, Long templateId) {
+        LessonTemplate template = templateRepository.findById(templateId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay mau bai giang"));
+        if (template.getStatus() != LessonTemplateStatus.ACTIVE) {
+            throw new BusinessException("Mau bai giang nay dang tam an");
+        }
+        if (!ALLOWED_TYPES.contains(template.getType()) || !ALLOWED_EXTENSIONS.contains(template.getExtension())) {
+            throw new BusinessException("Mau bai giang khong hop le");
+        }
+        return buildTemplateEditorSession(userId, template);
+    }
+
     private CollaboraEditorSessionResponse buildEditorSession(
             Long userId,
             Long draftId,
@@ -171,6 +235,35 @@ public class CollaboraSessionService {
                 .accessToken(accessToken)
                 .accessTokenTtl("0")
                 .canWrite(canWrite)
+                .build();
+    }
+
+    private CollaboraEditorSessionResponse buildTemplateEditorSession(Long userId, LessonTemplate template) {
+        String accessToken = UUID.randomUUID().toString();
+        activeSessions.put(sessionKey(template.getFileId(), accessToken), new CollaboraFileSession(
+                template.getFileId(),
+                template.getFileName(),
+                template.getExtension(),
+                userId,
+                null,
+                accessToken,
+                false,
+                false
+        ));
+
+        String actionUrl = resolveActionUrl(template.getExtension(), "view");
+        String wopiSrc = wopiPublicUrl.replaceAll("/+$", "") + "/" +
+                URLEncoder.encode(template.getFileId(), StandardCharsets.UTF_8).replace("+", "%20");
+        String fullActionUrl = actionUrl + "?WOPISrc=" + URLEncoder.encode(wopiSrc, StandardCharsets.UTF_8);
+
+        return CollaboraEditorSessionResponse.builder()
+                .draftId(null)
+                .fileId(template.getFileId())
+                .fileName(template.getFileName())
+                .actionUrl(fullActionUrl)
+                .accessToken(accessToken)
+                .accessTokenTtl("0")
+                .canWrite(false)
                 .build();
     }
 
@@ -364,6 +457,17 @@ public class CollaboraSessionService {
 
     private String extensionForType(String type) {
         return "COLLABORA_PPTX".equals(type) ? "pptx" : "docx";
+    }
+
+    private String extensionFromFileName(String fileName) {
+        if (fileName == null) {
+            return "";
+        }
+        int dot = fileName.lastIndexOf('.');
+        if (dot < 0 || dot == fileName.length() - 1) {
+            return "";
+        }
+        return fileName.substring(dot + 1).toLowerCase();
     }
 
     private String safeFileName(String title, String extension) {

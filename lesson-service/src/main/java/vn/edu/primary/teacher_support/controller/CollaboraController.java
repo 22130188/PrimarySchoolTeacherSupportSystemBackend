@@ -49,6 +49,18 @@ public class CollaboraController {
         ));
     }
 
+    @PostMapping(value = "/api/lessons/drafts/collabora/drafts/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<DraftResponse> uploadDraft(
+            @RequestHeader("Authorization") String authorization,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam String title,
+            @RequestParam String subject,
+            @RequestParam String grade
+    ) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(collaboraSessionService.uploadDraft(userId, file, title, subject, grade));
+    }
+
     @GetMapping("/api/lessons/drafts/collabora/drafts/{draftId}/editor")
     public ResponseEntity<CollaboraEditorSessionResponse> getEditorSession(
             @RequestHeader("Authorization") String authorization,
