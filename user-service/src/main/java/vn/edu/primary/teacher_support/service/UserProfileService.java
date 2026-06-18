@@ -10,6 +10,7 @@ import vn.edu.primary.teacher_support.repository.UserRepository;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Comparator;
 
 @Service
 public class UserProfileService {
@@ -49,12 +50,14 @@ public class UserProfileService {
         user.setPosition(request.getPosition());
         user.setPhone(request.getPhone());
 
+        ensureRequiredRole(user);
         return userRepository.save(user);
     }
 
     @Transactional
     public User updateSchool(User user, UpdateSchoolRequest request) {
         user.setSchoolName(request.getSchoolName());
+        ensureRequiredRole(user);
         return userRepository.save(user);
     }
 
@@ -76,12 +79,14 @@ public class UserProfileService {
             }
         }
 
+        ensureRequiredRole(user);
         return userRepository.save(user);
     }
 
     @Transactional
     public User updateAvatar(User user, UpdateAvatarRequest request) {
         user.setAvatarUrl(request.getAvatarUrl());
+        ensureRequiredRole(user);
         return userRepository.save(user);
     }
 
@@ -94,11 +99,32 @@ public class UserProfileService {
 
         // Cập nhật mật khẩu mới
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        ensureRequiredRole(user);
         userRepository.save(user);
     }
 
     private boolean isTeacher(User user) {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getName() == Role.RoleName.TEACHER);
+    }
+
+    private void ensureRequiredRole(User user) {
+        if (user.getRole() != null) {
+            return;
+        }
+
+        Role.RoleName primaryRole = user.getRoles().stream()
+                .map(Role::getName)
+                .max(Comparator.comparingInt(this::rolePriority))
+                .orElseThrow(() -> new RuntimeException("Tai khoan chua co vai tro"));
+        user.setRole(primaryRole);
+    }
+
+    private int rolePriority(Role.RoleName roleName) {
+        return switch (roleName) {
+            case STUDENT -> 0;
+            case TEACHER -> 1;
+            case ADMIN -> 2;
+        };
     }
 }
