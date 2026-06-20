@@ -16,6 +16,7 @@ import vn.edu.primary.teacher_support.exception.BusinessException;
 import vn.edu.primary.teacher_support.exception.ForbiddenException;
 import vn.edu.primary.teacher_support.exception.ResourceNotFoundException;
 import vn.edu.primary.teacher_support.repository.LessonClassroomShareRepository;
+import vn.edu.primary.teacher_support.repository.LessonCommentRepository;
 import vn.edu.primary.teacher_support.repository.LessonDraftRepository;
 import vn.edu.primary.teacher_support.repository.LessonShareRepository;
 
@@ -31,6 +32,7 @@ public class LessonShareService {
     private final LessonDraftRepository draftRepository;
     private final UserServiceClient userServiceClient;
     private final LessonClassroomShareRepository classroomShareRepository;
+    private final LessonCommentRepository lessonCommentRepository;
     private final ClassroomServiceClient classroomServiceClient;
 
     @Transactional
@@ -130,8 +132,9 @@ public class LessonShareService {
                             .type(draft.getType())
                             .status(draft.getStatus())
                             .permission(share.getPermission())
-                            .ownerName(owner != null ? (owner.getFullName() != null ? owner.getFullName() : owner.getEmail()) : "Unknown")
+                            .ownerName(displayName(owner))
                             .ownerEmail(owner != null ? owner.getEmail() : "")
+                            .ownerAvatarUrl(owner != null ? owner.getAvatarUrl() : null)
                             .createdAt(draft.getCreatedAt())
                             .updatedAt(draft.getUpdatedAt())
                             .build();
@@ -158,8 +161,9 @@ public class LessonShareService {
                 .status(draft.getStatus())
                 .canvasJson(draft.getCanvasJson())
                 .permission(share.getPermission())
-                .ownerName(owner != null ? (owner.getFullName() != null ? owner.getFullName() : owner.getEmail()) : "Unknown")
+                .ownerName(displayName(owner))
                 .ownerEmail(owner != null ? owner.getEmail() : "")
+                .ownerAvatarUrl(owner != null ? owner.getAvatarUrl() : null)
                 .createdAt(draft.getCreatedAt())
                 .updatedAt(draft.getUpdatedAt())
                 .build();
@@ -280,8 +284,10 @@ public class LessonShareService {
                             .type(draft.getType())
                             .status(draft.getStatus())
                             .permission(SharePermission.VIEW)
-                            .ownerName(owner != null ? (owner.getFullName() != null ? owner.getFullName() : owner.getEmail()) : "Unknown")
+                            .ownerName(displayName(owner))
                             .ownerEmail(owner != null ? owner.getEmail() : "")
+                            .ownerAvatarUrl(owner != null ? owner.getAvatarUrl() : null)
+                            .commentCount(lessonCommentRepository.countByClassroomShareId(share.getId()))
                             .createdAt(share.getCreatedAt())
                             .updatedAt(draft.getUpdatedAt())
                             .build();
@@ -312,8 +318,10 @@ public class LessonShareService {
                 .status(draft.getStatus())
                 .canvasJson(draft.getCanvasJson()) 
                 .permission(SharePermission.VIEW)
-                .ownerName(owner != null ? (owner.getFullName() != null ? owner.getFullName() : owner.getEmail()) : "Unknown")
+                .ownerName(displayName(owner))
                 .ownerEmail(owner != null ? owner.getEmail() : "")
+                .ownerAvatarUrl(owner != null ? owner.getAvatarUrl() : null)
+                .commentCount(lessonCommentRepository.countByClassroomShareId(share.getId()))
                 .createdAt(share.getCreatedAt())
                 .updatedAt(draft.getUpdatedAt())
                 .build();
@@ -326,9 +334,15 @@ public class LessonShareService {
                 .draftId(share.getDraftId())
                 .sharedWithUserId(share.getSharedWithUserId())
                 .sharedWithEmail(user != null ? user.getEmail() : "Unknown")
-                .sharedWithName(user != null ? (user.getFullName() != null ? user.getFullName() : user.getEmail()) : "Unknown")
+                .sharedWithName(displayName(user))
                 .permission(share.getPermission())
                 .createdAt(share.getCreatedAt())
                 .build();
+    }
+
+    private String displayName(UserDto user) {
+        if (user == null) return "Unknown";
+        if (user.getUsername() != null && !user.getUsername().isBlank()) return user.getUsername();
+        return user.getEmail() != null ? user.getEmail() : "Unknown";
     }
 }

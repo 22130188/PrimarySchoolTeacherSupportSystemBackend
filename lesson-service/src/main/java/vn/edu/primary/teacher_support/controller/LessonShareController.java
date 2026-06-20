@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import vn.edu.primary.teacher_support.dto.*;
 import vn.edu.primary.teacher_support.service.AuthHelper;
 import vn.edu.primary.teacher_support.service.LessonShareService;
+import vn.edu.primary.teacher_support.service.LessonCommentService;
 
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import java.util.Map;
 public class LessonShareController {
 
     private final LessonShareService shareService;
+    private final LessonCommentService commentService;
     private final AuthHelper authHelper;
 
     @PostMapping("/drafts/{id}/shares")
@@ -124,6 +126,37 @@ public class LessonShareController {
             @PathVariable Long draftId) {
         Long userId = authHelper.extractUserId(authorization);
         return ResponseEntity.ok(shareService.getClassroomSharedDraft(draftId, classroomId, userId));
+    }
+
+    @GetMapping("/classrooms/{classroomId}/shared-drafts/{draftId}/comments")
+    public ResponseEntity<List<LessonCommentResponse>> getClassroomLessonComments(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long classroomId,
+            @PathVariable Long draftId) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(commentService.getComments(classroomId, draftId, userId));
+    }
+
+    @PostMapping("/classrooms/{classroomId}/shared-drafts/{draftId}/comments")
+    public ResponseEntity<LessonCommentResponse> createClassroomLessonComment(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long classroomId,
+            @PathVariable Long draftId,
+            @Valid @RequestBody CreateLessonCommentRequest request) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(commentService.createComment(classroomId, draftId, userId, request));
+    }
+
+    @DeleteMapping("/classrooms/{classroomId}/shared-drafts/{draftId}/comments/{commentId}")
+    public ResponseEntity<Void> deleteClassroomLessonComment(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long classroomId,
+            @PathVariable Long draftId,
+            @PathVariable Long commentId) {
+        Long userId = authHelper.extractUserId(authorization);
+        commentService.deleteComment(classroomId, draftId, commentId, userId);
+        return ResponseEntity.noContent().build();
     }
 }
 
