@@ -119,7 +119,7 @@ public class LessonDraftService {
 
     private AdminDraftResponse toAdminResponse(LessonDraft draft) {
         String createdByName = userServiceClient.findById(draft.getUserId())
-                .map(u -> u.getFullName() != null ? u.getFullName() : u.getEmail())
+                .map(u -> u.getUsername() != null ? u.getUsername() : u.getEmail())
                 .orElse("Unknown");
         return AdminDraftResponse.builder()
                 .id(draft.getId())

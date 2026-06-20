@@ -31,6 +31,7 @@ public class ClassroomPostResponse {
     private LocalDateTime updatedAt;
     private boolean canDelete;
     private List<AttachmentItem> attachments;
+    private long commentCount;
 
     @Data
     @NoArgsConstructor

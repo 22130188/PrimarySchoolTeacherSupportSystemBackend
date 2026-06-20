@@ -18,6 +18,8 @@ public class SharedDraftResponse {
     private SharePermission permission;
     private String ownerName;
     private String ownerEmail;
+    private String ownerAvatarUrl;
+    private long commentCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

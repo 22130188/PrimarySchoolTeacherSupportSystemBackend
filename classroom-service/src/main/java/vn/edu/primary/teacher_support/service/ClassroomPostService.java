@@ -17,6 +17,10 @@ import vn.edu.primary.teacher_support.exception.ForbiddenException;
 import vn.edu.primary.teacher_support.exception.ResourceNotFoundException;
 import vn.edu.primary.teacher_support.repository.ClassroomMemberRepository;
 import vn.edu.primary.teacher_support.repository.ClassroomPostRepository;
+import vn.edu.primary.teacher_support.repository.PostCommentRepository;
+import vn.edu.primary.teacher_support.entity.PostComment;
+import vn.edu.primary.teacher_support.dto.PostCommentResponse;
+import vn.edu.primary.teacher_support.dto.CreateCommentRequest;
 
 import java.util.Collections;
 import java.util.List;
@@ -35,6 +39,7 @@ public class ClassroomPostService {
     private final ClassroomMemberRepository classroomMemberRepository;
     private final UserServiceClient userServiceClient;
     private final GoogleDriveService googleDriveService;
+    private final PostCommentRepository postCommentRepository;
 
     @Transactional(readOnly = true)
     public List<ClassroomPostResponse> getPosts(Long classroomId, Long requesterId, int limit) {
@@ -195,6 +200,95 @@ public class ClassroomPostService {
         classroomPostRepository.delete(post);
     }
 
+    @Transactional(readOnly = true)
+    public List<PostCommentResponse> getPostComments(Long classroomId, Long postId, Long requesterId) {
+        Classroom classroom = classroomService.getActiveClassroom(classroomId);
+        validateCanView(classroom, requesterId);
+
+        ClassroomPost post = classroomPostRepository.findByIdAndClassroomId(postId, classroomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài đăng"));
+
+        List<PostComment> comments = postCommentRepository.findByPostIdOrderByCreatedAtAsc(postId);
+
+        Set<Long> authorIds = comments.stream().map(PostComment::getAuthorId).collect(Collectors.toSet());
+        Map<Long, UserDto> authors = authorIds.stream()
+                .map(userServiceClient::findById)
+                .filter(java.util.Optional::isPresent)
+                .map(java.util.Optional::get)
+                .collect(Collectors.toMap(UserDto::getId, u -> u));
+
+        return comments.stream().map(comment -> {
+            UserDto author = authors.get(comment.getAuthorId());
+            boolean canDelete = requesterId != null &&
+                    (requesterId.equals(comment.getAuthorId()) || requesterId.equals(classroom.getTeacherId()));
+
+            return PostCommentResponse.builder()
+                    .id(comment.getId())
+                    .postId(comment.getPost().getId())
+                    .authorId(comment.getAuthorId())
+                    .authorName(author != null ? author.getUsername() : "Unknown")
+                    .authorAvatarUrl(author != null ? author.getAvatarUrl() : null)
+                    .content(comment.getContent())
+                    .createdAt(comment.getCreatedAt())
+                    .canDelete(canDelete)
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public PostCommentResponse createPostComment(Long classroomId, Long postId, Long authorId, CreateCommentRequest request) {
+        Classroom classroom = classroomService.getActiveClassroom(classroomId);
+        validateCanView(classroom, authorId);
+
+        ClassroomPost post = classroomPostRepository.findByIdAndClassroomId(postId, classroomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài đăng"));
+
+        PostComment comment = PostComment.builder()
+                .post(post)
+                .authorId(authorId)
+                .content(request.getContent().trim())
+                .build();
+
+        PostComment saved = postCommentRepository.save(comment);
+
+        UserDto author = userServiceClient.findById(authorId).orElse(null);
+
+        return PostCommentResponse.builder()
+                .id(saved.getId())
+                .postId(saved.getPost().getId())
+                .authorId(saved.getAuthorId())
+                .authorName(author != null ? author.getUsername() : "Unknown")
+                .authorAvatarUrl(author != null ? author.getAvatarUrl() : null)
+                .content(saved.getContent())
+                .createdAt(saved.getCreatedAt())
+                .canDelete(true)
+                .build();
+    }
+
+    @Transactional
+    public void deletePostComment(Long classroomId, Long postId, Long commentId, Long requesterId) {
+        Classroom classroom = classroomService.getActiveClassroom(classroomId);
+        validateCanView(classroom, requesterId);
+
+        ClassroomPost post = classroomPostRepository.findByIdAndClassroomId(postId, classroomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài đăng"));
+
+        PostComment comment = postCommentRepository.findById(commentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhận xét"));
+
+        if (!comment.getPost().getId().equals(post.getId())) {
+            throw new BusinessException("Nhận xét không thuộc bài đăng này");
+        }
+
+        boolean isClassTeacher = classroom.getTeacherId().equals(requesterId);
+        boolean isAuthor = comment.getAuthorId().equals(requesterId);
+        if (!isClassTeacher && !isAuthor) {
+            throw new ForbiddenException("Bạn không có quyền xóa nhận xét này");
+        }
+
+        postCommentRepository.delete(comment);
+    }
+
     private void validateCanView(Classroom classroom, Long userId) {
         if (classroom.getTeacherId().equals(userId)) {
             return;
@@ -234,6 +328,8 @@ public class ClassroomPostService {
                         .build())
                 .collect(Collectors.toList());
 
+        long commentCount = postCommentRepository.countByPostId(post.getId());
+
         return ClassroomPostResponse.builder()
                 .id(post.getId())
                 .classroomId(post.getClassroom().getId())
@@ -254,6 +350,7 @@ public class ClassroomPostService {
                 .updatedAt(post.getUpdatedAt())
                 .canDelete(canDelete)
                 .attachments(attachments)
+                .commentCount(commentCount)
                 .build();
     }
 }
