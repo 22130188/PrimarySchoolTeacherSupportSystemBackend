@@ -67,6 +67,10 @@ public class ClassroomPost {
     @Builder.Default
     private List<ClassroomPostAttachment> attachments = new ArrayList<>();
 
+    @OneToMany(mappedBy = "post", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<PostComment> comments = new ArrayList<>();
+
     @Column(name = "created_at", updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

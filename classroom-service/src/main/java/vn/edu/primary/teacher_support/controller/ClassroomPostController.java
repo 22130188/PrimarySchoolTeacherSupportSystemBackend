@@ -62,4 +62,38 @@ public class ClassroomPostController {
         classroomPostService.deletePost(classroomId, postId, userId);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/{postId}/comments")
+    public ResponseEntity<List<vn.edu.primary.teacher_support.dto.PostCommentResponse>> getComments(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long classroomId,
+            @PathVariable Long postId
+    ) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(classroomPostService.getPostComments(classroomId, postId, userId));
+    }
+
+    @PostMapping("/{postId}/comments")
+    public ResponseEntity<vn.edu.primary.teacher_support.dto.PostCommentResponse> createComment(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long classroomId,
+            @PathVariable Long postId,
+            @Valid @RequestBody vn.edu.primary.teacher_support.dto.CreateCommentRequest request
+    ) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(classroomPostService.createPostComment(classroomId, postId, userId, request));
+    }
+
+    @DeleteMapping("/{postId}/comments/{commentId}")
+    public ResponseEntity<Void> deleteComment(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long classroomId,
+            @PathVariable Long postId,
+            @PathVariable Long commentId
+    ) {
+        Long userId = authHelper.extractUserId(authorization);
+        classroomPostService.deletePostComment(classroomId, postId, commentId, userId);
+        return ResponseEntity.noContent().build();
+    }
 }
