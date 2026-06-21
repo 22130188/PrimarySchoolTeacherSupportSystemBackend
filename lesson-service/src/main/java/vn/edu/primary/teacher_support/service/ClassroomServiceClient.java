@@ -8,6 +8,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -66,5 +67,22 @@ public class ClassroomServiceClient {
             log.warn("Failed to check access for classroom {} user {}: {}", classroomId, userId, e.getMessage());
             return false;
         }
+    }
+
+    public List<Long> getStudentIds(Long classroomId) {
+        try {
+            @SuppressWarnings("unchecked")
+            ResponseEntity<Map> response = restTemplate.getForEntity(
+                    CLASSROOM_SERVICE_URL + "/api/internal/classrooms/" + classroomId + "/notification-recipients",
+                    Map.class);
+            Object value = response.getBody() == null ? null : response.getBody().get("studentIds");
+            if (value instanceof List<?> list) {
+                return list.stream().filter(Number.class::isInstance)
+                        .map(Number.class::cast).map(Number::longValue).toList();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch notification recipients for classroom {}: {}", classroomId, e.getMessage());
+        }
+        return List.of();
     }
 }

@@ -33,6 +33,7 @@ public class LessonShareService {
     private final UserServiceClient userServiceClient;
     private final LessonClassroomShareRepository classroomShareRepository;
     private final LessonCommentRepository lessonCommentRepository;
+    private final NotificationClient notificationClient;
     private final ClassroomServiceClient classroomServiceClient;
 
     @Transactional
@@ -69,6 +70,12 @@ public class LessonShareService {
             share = shareRepository.save(share);
             log.info("Shared draft {} with user {} permission {}", draftId, targetUser.getId(), permission);
         }
+
+        UserDto owner = userServiceClient.findById(ownerUserId).orElse(null);
+        String ownerName = displayName(owner);
+        notificationClient.notifyUser(targetUser.getId(), ownerUserId, ownerName,
+                "LESSON_SHARED", ownerName + " đã chia sẻ bài giảng với bạn",
+                draft.getTitle(), "/dashboard", "LESSON", draftId);
 
         return toShareResponse(share, targetUser);
     }
@@ -198,7 +205,7 @@ public class LessonShareService {
 
     @Transactional
     public ClassroomShareResponse shareToClassroom(Long draftId, Long ownerUserId, Long classroomId) {
-        draftRepository.findByIdAndUserId(draftId, ownerUserId)
+        LessonDraft draft = draftRepository.findByIdAndUserId(draftId, ownerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài giảng hoặc bạn không phải chủ sở hữu"));
 
         Long classroomTeacherId = classroomServiceClient.getClassroomTeacherId(classroomId);
@@ -222,6 +229,12 @@ public class LessonShareService {
         share = classroomShareRepository.save(share);
 
         String classroomName = classroomServiceClient.getClassroomName(classroomId);
+        UserDto owner = userServiceClient.findById(ownerUserId).orElse(null);
+        String ownerName = displayName(owner);
+        notificationClient.notifyUsers(classroomServiceClient.getStudentIds(classroomId), ownerUserId, ownerName,
+                "LESSON_SHARED", "Bài giảng mới trong " + classroomName,
+                draft.getTitle(), "/classrooms/" + classroomId,
+                "LESSON", draftId);
         log.info("Shared draft {} to classroom {} by user {}", draftId, classroomId, ownerUserId);
 
         return ClassroomShareResponse.builder()
