@@ -26,6 +26,7 @@ import vn.edu.primary.test.dto.LessonContentDto;
 import vn.edu.primary.test.security.JwtProvider;
 import vn.edu.primary.test.service.LessonContentService;
 import vn.edu.primary.test.service.TestService;
+import vn.edu.primary.test.service.NotificationClient;
 
 import java.util.List;
 import java.util.Map;
@@ -64,6 +65,7 @@ public class TestController {
     private final TestAttemptRepository testAttemptRepository;
     private final TestRepository testRepository;
     private final ObjectMapper objectMapper;
+    private final NotificationClient notificationClient;
 
     @Value("${python.api.url:http://localhost:8001}")
     private String pythonApiUrl;
@@ -427,6 +429,13 @@ public class TestController {
                 attempt = testAttemptRepository.save(attempt);
                 log.info("✓ Saved attempt: id={}, userId={}, testId={}, score={}/{}", 
                     attempt.getId(), attempt.getUserId(), testId, attempt.getScore(), attempt.getMaxScore());
+
+                if (attempt.getTest() != null) {
+                    notificationClient.notifyTestSubmitted(
+                            attempt.getTest().getCreatedBy(), attempt.getUserId(),
+                            attempt.getUserName() == null ? "Học sinh" : attempt.getUserName(),
+                            testId, attempt.getTest().getName(), attempt.getScore(), attempt.getMaxScore());
+                }
 
                 Map<String, Object> result = new HashMap<>();
                 result.put("score", attempt.getScore());

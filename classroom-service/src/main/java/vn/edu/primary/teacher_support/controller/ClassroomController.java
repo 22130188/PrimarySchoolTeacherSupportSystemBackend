@@ -112,7 +112,7 @@ public class ClassroomController {
         authHelper.validateTeacherOrAdmin(authorization);
         Long userId = authHelper.extractUserId(authorization);
         invitationService.resendInvitation(id, invId, userId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}/invitations/{invId}")

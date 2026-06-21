@@ -10,6 +10,7 @@ import vn.edu.primary.teacher_support.service.ClassroomService;
 import vn.edu.primary.teacher_support.service.InvitationService;
 
 import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/internal")
@@ -97,5 +98,15 @@ public class InternalClassroomController {
         } catch (Exception e) {
             return ResponseEntity.ok(Map.of("hasAccess", false, "error", e.getMessage()));
         }
+    }
+
+    @GetMapping("/classrooms/{id}/notification-recipients")
+    public ResponseEntity<Map<String, Object>> getNotificationRecipients(@PathVariable Long id) {
+        Classroom classroom = classroomService.getActiveClassroom(id);
+        List<Long> studentIds = classroomService.getActiveStudentIds(id);
+        return ResponseEntity.ok(Map.of(
+                "teacherId", classroom.getTeacherId(),
+                "studentIds", studentIds,
+                "classroomName", classroom.getName()));
     }
 }

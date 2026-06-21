@@ -28,6 +28,7 @@ public class LessonCommentService {
     private final LessonClassroomShareRepository classroomShareRepository;
     private final ClassroomServiceClient classroomServiceClient;
     private final UserServiceClient userServiceClient;
+    private final NotificationClient notificationClient;
 
     @Transactional(readOnly = true)
     public List<LessonCommentResponse> getComments(Long classroomId, Long draftId, Long requesterId) {
@@ -64,6 +65,14 @@ public class LessonCommentService {
                 .build());
 
         UserDto author = userServiceClient.findById(authorId).orElse(null);
+        if (!share.getOwnerUserId().equals(authorId)) {
+            String authorName = displayName(author);
+            notificationClient.notifyUser(share.getOwnerUserId(), authorId, authorName,
+                    "LESSON_COMMENT", authorName + " đã nhận xét bài giảng của bạn",
+                    request.getContent().trim(),
+                    "/classrooms/" + classroomId,
+                    "LESSON", draftId);
+        }
         return toResponse(saved, author, authorId, classroomServiceClient.getClassroomTeacherId(classroomId));
     }
 

@@ -40,6 +40,7 @@ public class ClassroomPostService {
     private final UserServiceClient userServiceClient;
     private final GoogleDriveService googleDriveService;
     private final PostCommentRepository postCommentRepository;
+    private final NotificationClient notificationClient;
 
     @Transactional(readOnly = true)
     public List<ClassroomPostResponse> getPosts(Long classroomId, Long requesterId, int limit) {
@@ -114,6 +115,8 @@ public class ClassroomPostService {
         }
 
         ClassroomPost saved = classroomPostRepository.save(post);
+
+        notifyAboutNewPost(classroom, saved, authorId);
 
         Map<Long, UserDto> authors = userServiceClient.findById(authorId)
                 .map(user -> Map.of(user.getId(), user))
@@ -253,6 +256,15 @@ public class ClassroomPostService {
 
         UserDto author = userServiceClient.findById(authorId).orElse(null);
 
+        if (!post.getAuthorId().equals(authorId)) {
+            String authorName = author != null ? author.getUsername() : "Một thành viên";
+            notificationClient.notifyUser(post.getAuthorId(), authorId, authorName,
+                    "POST_COMMENT", authorName + " đã bình luận bài đăng của bạn",
+                    classroom.getName(),
+                    "/classrooms/" + classroomId + "?postId=" + postId,
+                    "CLASSROOM_POST", postId);
+        }
+
         return PostCommentResponse.builder()
                 .id(saved.getId())
                 .postId(saved.getPost().getId())
@@ -301,6 +313,37 @@ public class ClassroomPostService {
         );
         if (!activeMember) {
             throw new ForbiddenException("Bạn không phải thành viên của lớp này");
+        }
+    }
+
+    private void notifyAboutNewPost(Classroom classroom, ClassroomPost post, Long authorId) {
+        UserDto author = userServiceClient.findById(authorId).orElse(null);
+        String authorName = author != null ? author.getUsername() : "Giáo viên";
+        String title = switch (post.getPostType()) {
+            case ASSIGNMENT -> "Bài tập mới trong " + classroom.getName();
+            case TEST -> "Bài kiểm tra mới trong " + classroom.getName();
+            case ANNOUNCEMENT -> "Thông báo mới trong " + classroom.getName();
+        };
+        String type = switch (post.getPostType()) {
+            case ASSIGNMENT -> "NEW_ASSIGNMENT";
+            case TEST -> "NEW_TEST";
+            case ANNOUNCEMENT -> "CLASS_ANNOUNCEMENT";
+        };
+
+        if (classroom.getTeacherId().equals(authorId)) {
+            List<Long> studentIds = classroomMemberRepository
+                    .findByClassroomIdAndStatusOrderByJoinedAtDesc(classroom.getId(), MemberStatus.ACTIVE)
+                    .stream().map(member -> member.getStudentId()).toList();
+            notificationClient.notifyUsers(studentIds, authorId, authorName, type, title,
+                    post.getTitle() != null ? post.getTitle() : post.getContent(),
+                    "/classrooms/" + classroom.getId() + "?postId=" + post.getId(),
+                    "CLASSROOM_POST", post.getId());
+        } else {
+            notificationClient.notifyUser(classroom.getTeacherId(), authorId, authorName,
+                    "STUDENT_POST", authorName + " đã đăng bài trong " + classroom.getName(),
+                    post.getContent(),
+                    "/classrooms/" + classroom.getId() + "?postId=" + post.getId(),
+                    "CLASSROOM_POST", post.getId());
         }
     }
 

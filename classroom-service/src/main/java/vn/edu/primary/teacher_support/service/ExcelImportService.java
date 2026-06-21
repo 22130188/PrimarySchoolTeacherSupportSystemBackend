@@ -3,7 +3,6 @@ package vn.edu.primary.teacher_support.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,7 +34,8 @@ public class ExcelImportService {
         }
 
         String filename = file.getOriginalFilename();
-        if (filename == null || (!filename.endsWith(".xlsx") && !filename.endsWith(".xls"))) {
+        String lowercaseFilename = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
+        if (!lowercaseFilename.endsWith(".xlsx") && !lowercaseFilename.endsWith(".xls")) {
             throw new BusinessException("Chỉ hỗ trợ file Excel (.xlsx, .xls)");
         }
 
@@ -53,18 +53,25 @@ public class ExcelImportService {
         int duplicateInFile = 0;
 
         try (InputStream is = file.getInputStream();
-             Workbook workbook = new XSSFWorkbook(is)) {
+             Workbook workbook = WorkbookFactory.create(is)) {
 
             Sheet sheet = workbook.getSheetAt(0);
+            Row headerRow = sheet.getRow(sheet.getFirstRowNum());
+            int emailColumn = findEmailColumn(headerRow);
 
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+            if (emailColumn < 0) {
+                throw new BusinessException("Không tìm thấy cột 'email' hoặc 'gmail' trong dòng tiêu đề");
+            }
+
+            DataFormatter formatter = new DataFormatter();
+            for (int i = sheet.getFirstRowNum() + 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
 
-                Cell cell = row.getCell(0);
+                Cell cell = row.getCell(emailColumn);
                 if (cell == null) continue;
 
-                String email = getCellStringValue(cell).trim().toLowerCase();
+                String email = formatter.formatCellValue(cell).trim().toLowerCase(Locale.ROOT);
                 if (email.isEmpty()) continue;
 
                 total++;
@@ -124,12 +131,16 @@ public class ExcelImportService {
                 .build();
     }
 
-    private String getCellStringValue(Cell cell) {
-        if (cell.getCellType() == CellType.STRING) {
-            return cell.getStringCellValue();
-        } else if (cell.getCellType() == CellType.NUMERIC) {
-            return String.valueOf((long) cell.getNumericCellValue());
+    private int findEmailColumn(Row headerRow) {
+        if (headerRow == null) return -1;
+
+        DataFormatter formatter = new DataFormatter();
+        for (Cell cell : headerRow) {
+            String header = formatter.formatCellValue(cell).trim().toLowerCase(Locale.ROOT);
+            if ("email".equals(header) || "gmail".equals(header)) {
+                return cell.getColumnIndex();
+            }
         }
-        return "";
+        return -1;
     }
 }

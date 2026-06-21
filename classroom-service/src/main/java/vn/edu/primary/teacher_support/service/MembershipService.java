@@ -32,6 +32,7 @@ public class MembershipService {
     private final ClassroomService classroomService;
     private final InvitationService invitationService;
     private final UserServiceClient userServiceClient;
+    private final NotificationClient notificationClient;
 
 
     @Transactional
@@ -40,6 +41,7 @@ public class MembershipService {
         validateNotAlreadyMember(classroom.getId(), studentId);
 
         addOrReactivateMember(classroom, studentId, JoinType.INVITE_LINK);
+        notifyTeacherAboutMembership(classroom, studentId, "đã tham gia lớp", "STUDENT_JOINED");
 
         log.info("Student {} joined classroom {} via invite link", studentId, classroom.getId());
         return classroomService.getClassroom(classroom.getId(), studentId);
@@ -52,6 +54,7 @@ public class MembershipService {
         validateNotAlreadyMember(classroom.getId(), studentId);
 
         addOrReactivateMember(classroom, studentId, JoinType.CLASS_CODE);
+        notifyTeacherAboutMembership(classroom, studentId, "đã tham gia lớp", "STUDENT_JOINED");
 
         log.info("Student {} joined classroom {} via class code", studentId, classroom.getId());
         return classroomService.getClassroom(classroom.getId(), studentId);
@@ -77,6 +80,7 @@ public class MembershipService {
         invitationService.acceptInvitation(invitation.getId(), studentId, email);
 
         addOrReactivateMember(classroom, studentId, JoinType.EMAIL_INVITE);
+        notifyTeacherAboutMembership(classroom, studentId, "đã chấp nhận lời mời vào lớp", "INVITATION_ACCEPTED");
 
         log.info("Student {} joined classroom {} via email invitation", studentId, classroom.getId());
         return classroomService.getClassroom(classroom.getId(), studentId);
@@ -98,6 +102,7 @@ public class MembershipService {
         invitationService.acceptInvitation(invitationId, studentId, email);
 
         addOrReactivateMember(classroom, studentId, JoinType.EMAIL_INVITE);
+        notifyTeacherAboutMembership(classroom, studentId, "đã chấp nhận lời mời vào lớp", "INVITATION_ACCEPTED");
 
         log.info("Student {} accepted invitation and joined classroom {}", studentId, classroom.getId());
         return classroomService.getClassroom(classroom.getId(), studentId);
@@ -131,7 +136,18 @@ public class MembershipService {
 
         member.setStatus(MemberStatus.LEFT);
         memberRepository.save(member);
+        notifyTeacherAboutMembership(member.getClassroom(), studentId, "đã rời khỏi lớp", "STUDENT_LEFT");
         log.info("Student {} left classroom {}", studentId, classroomId);
+    }
+
+    private void notifyTeacherAboutMembership(Classroom classroom, Long studentId, String action, String type) {
+        UserDto student = userServiceClient.findById(studentId).orElse(null);
+        String studentName = student != null ? student.getUsername() : "Một học sinh";
+        notificationClient.notifyUser(classroom.getTeacherId(), studentId, studentName, type,
+                studentName + " " + action,
+                "Lớp " + classroom.getName(),
+                "/classrooms/" + classroom.getId() + "?tab=people",
+                "CLASSROOM", classroom.getId());
     }
 
     private void addOrReactivateMember(Classroom classroom, Long studentId, JoinType joinType) {

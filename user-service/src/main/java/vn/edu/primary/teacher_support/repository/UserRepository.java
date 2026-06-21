@@ -19,6 +19,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
+    List<User> findByRoleAndIsActiveTrue(Role.RoleName role);
+
+    List<User> findByIsActiveTrue();
+
     @Query("""
             SELECT DISTINCT u FROM User u JOIN u.roles r
             WHERE (:roleName IS NULL OR r.name = :roleName)
