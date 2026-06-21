@@ -32,6 +32,7 @@ public class ClassroomService {
     private final ClassroomMemberRepository memberRepository;
     private final ClassroomInvitationRepository invitationRepository;
     private final UserServiceClient userServiceClient;
+    private final NotificationClient notificationClient;
 
     @Value("${classroom.frontend.base-url}")
     private String frontendBaseUrl;
@@ -90,6 +91,13 @@ public class ClassroomService {
         classroom.setIsDeleted(true);
         classroom.setDeletedAt(LocalDateTime.now());
         classroomRepository.save(classroom);
+
+        List<Long> studentIds = memberRepository
+                .findByClassroomIdAndStatusOrderByJoinedAtDesc(classroomId, MemberStatus.ACTIVE)
+                .stream().map(ClassroomMember::getStudentId).toList();
+        notificationClient.notifyUsers(studentIds, teacherId, "Giáo viên", "CLASS_DELETED",
+                "Lớp " + classroom.getName() + " đã được đóng",
+                "Lớp học không còn hoạt động.", "/classrooms", "CLASSROOM", classroomId);
     }
 
     @Transactional
@@ -264,6 +272,10 @@ public class ClassroomService {
 
         member.setStatus(MemberStatus.REMOVED);
         memberRepository.save(member);
+        notificationClient.notifyUser(member.getStudentId(), teacherId, "Giáo viên",
+                "REMOVED_FROM_CLASS", "Bạn đã được xóa khỏi lớp " + classroom.getName(),
+                "Liên hệ giáo viên nếu bạn cho rằng đây là nhầm lẫn.",
+                "/classrooms", "CLASSROOM", classroomId);
     }
 
 
@@ -275,6 +287,12 @@ public class ClassroomService {
     public Classroom findByClassCode(String code) {
         return classroomRepository.findByClassCodeAndIsDeletedFalse(code)
                 .orElseThrow(() -> new ResourceNotFoundException("Class code không hợp lệ hoặc lớp đã bị xóa"));
+    }
+
+    public List<Long> getActiveStudentIds(Long classroomId) {
+        getActiveClassroom(classroomId);
+        return memberRepository.findByClassroomIdAndStatusOrderByJoinedAtDesc(classroomId, MemberStatus.ACTIVE)
+                .stream().map(ClassroomMember::getStudentId).toList();
     }
 
     public Classroom getActiveClassroom(Long id) {

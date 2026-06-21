@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.primary.teacher_support.dto.*;
 import vn.edu.primary.teacher_support.entity.Classroom;
@@ -31,6 +32,7 @@ public class InvitationService {
     private final ClassroomService classroomService;
     private final UserServiceClient userServiceClient;
     private final EmailService emailService;
+    private final NotificationClient notificationClient;
 
     @Value("${classroom.invite.expiry-days}")
     private int expiryDays;
@@ -66,6 +68,10 @@ public class InvitationService {
             UserDto teacher = userServiceClient.findById(invitedBy).orElse(null);
             String teacherName = teacher != null ? teacher.getUsername() : "Giáo viên";
             emailService.sendInvitationEmail(email, classroom.getName(), teacherName, invitation.getToken());
+            notificationClient.notifyUser(user.getId(), invitedBy, teacherName, "CLASS_INVITATION",
+                    "Bạn được mời vào lớp " + classroom.getName(),
+                    teacherName + " đã gửi cho bạn một lời mời tham gia lớp học.",
+                    "/classrooms", "CLASSROOM", classroomId);
 
             return toResponse(invitation, classroom.getName());
         } else {
@@ -87,7 +93,7 @@ public class InvitationService {
         }
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String inviteByEmailForBatch(Long classroomId, Classroom classroom, String email, Long invitedBy) {
         email = email.trim().toLowerCase();
 
@@ -117,6 +123,10 @@ public class InvitationService {
             UserDto teacher = userServiceClient.findById(invitedBy).orElse(null);
             String teacherName = teacher != null ? teacher.getUsername() : "Giáo viên";
             emailService.sendInvitationEmail(email, classroom.getName(), teacherName, invitation.getToken());
+            notificationClient.notifyUser(user.getId(), invitedBy, teacherName, "CLASS_INVITATION",
+                    "Bạn được mời vào lớp " + classroom.getName(),
+                    teacherName + " đã gửi cho bạn một lời mời tham gia lớp học.",
+                    "/classrooms", "CLASSROOM", classroomId);
 
             return "invited_success";
         } else {
@@ -160,6 +170,10 @@ public class InvitationService {
         if (invitation.getStatus() == InvitationStatus.INVITED) {
             emailService.sendInvitationEmail(invitation.getEmail(), classroom.getName(), teacherName,
                     invitation.getToken());
+            notificationClient.notifyUser(invitation.getStudentId(), teacherId, teacherName,
+                    "CLASS_INVITATION", "Lời mời lớp học đã được gửi lại",
+                    "Lời mời tham gia lớp " + classroom.getName() + " vừa được gia hạn.",
+                    "/classrooms", "CLASSROOM", classroomId);
         } else {
             emailService.sendRegistrationInviteEmail(invitation.getEmail(), classroom.getName(), teacherName,
                     invitation.getToken());
@@ -178,6 +192,12 @@ public class InvitationService {
 
         invitation.setStatus(InvitationStatus.CANCELLED);
         invitationRepository.save(invitation);
+        if (invitation.getStudentId() != null) {
+            notificationClient.notifyUser(invitation.getStudentId(), teacherId, "Giáo viên",
+                    "INVITATION_REVOKED", "Lời mời tham gia lớp đã được thu hồi",
+                    "Lớp " + invitation.getClassroom().getName(),
+                    "/classrooms", "CLASSROOM", classroomId);
+        }
     }
 
 
@@ -252,6 +272,14 @@ public class InvitationService {
         invitation.setStatus(InvitationStatus.REJECTED);
         invitation.setRejectedAt(LocalDateTime.now());
         invitationRepository.save(invitation);
+
+        UserDto student = userServiceClient.findById(studentId).orElse(null);
+        String studentName = student != null ? student.getUsername() : "Học sinh";
+        notificationClient.notifyUser(invitation.getInvitedBy(), studentId, studentName,
+                "INVITATION_REJECTED", studentName + " đã từ chối lời mời",
+                "Lời mời tham gia lớp " + invitation.getClassroom().getName() + " đã bị từ chối.",
+                "/classrooms/" + invitation.getClassroom().getId() + "?tab=people",
+                "CLASSROOM", invitation.getClassroom().getId());
     }
 
 
@@ -273,6 +301,12 @@ public class InvitationService {
             invitation.setStudentId(userId);
             invitation.setStatus(InvitationStatus.INVITED);
             invitationRepository.save(invitation);
+            UserDto teacher = userServiceClient.findById(invitation.getInvitedBy()).orElse(null);
+            String teacherName = teacher != null ? teacher.getUsername() : "Giáo viên";
+            notificationClient.notifyUser(userId, invitation.getInvitedBy(), teacherName,
+                    "CLASS_INVITATION", "Bạn được mời vào lớp " + invitation.getClassroom().getName(),
+                    teacherName + " đã gửi cho bạn một lời mời tham gia lớp học.",
+                    "/classrooms", "CLASSROOM", invitation.getClassroom().getId());
             count++;
         }
 

@@ -6,8 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import vn.edu.primary.teacher_support.exception.BusinessException;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +18,9 @@ public class EmailService {
 
     @Value("${classroom.frontend.base-url}")
     private String frontendBaseUrl;
+
+    @Value("${spring.mail.username:}")
+    private String mailUsername;
 
     public void sendInvitationEmail(String toEmail, String classroomName, String teacherName, String invitationToken) {
         String joinUrl = frontendBaseUrl + "/join/invitation?token=" + invitationToken;
@@ -93,10 +96,14 @@ public class EmailService {
 
     private void sendHtmlEmail(String toEmail, String subject, String html) {
         try {
+            if (mailUsername == null || mailUsername.isBlank()) {
+                throw new IllegalStateException("Chưa cấu hình CLASSROOM_MAIL_USERNAME");
+            }
+
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setFrom("22130248@st.hcmuaf.edu.vn", "TeachAI");
+            helper.setFrom(mailUsername, "TeachAI");
             helper.setTo(toEmail);
             helper.setSubject(subject);
             helper.setText(html, true);
@@ -104,7 +111,9 @@ public class EmailService {
 
             log.info("Email sent successfully to {}", toEmail);
         } catch (Exception e) {
-            log.error("Failed to send email to {}: {}", toEmail, e.getMessage());
+            log.error("Failed to send email to {}: {}", toEmail, e.getMessage(), e);
+            throw new BusinessException(
+                    "Không thể gửi email lời mời. Vui lòng kiểm tra cấu hình SMTP của classroom-service.", e);
         }
     }
 }
