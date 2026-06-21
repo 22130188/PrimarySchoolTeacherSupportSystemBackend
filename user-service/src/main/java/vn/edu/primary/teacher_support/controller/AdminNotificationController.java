@@ -24,7 +24,7 @@ public class AdminNotificationController {
 
     @PostMapping("/broadcast")
     public ResponseEntity<Map<String, Integer>> broadcast(
-            @RequestHeader("Authorization") String authorization,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @Valid @RequestBody NotificationBroadcastRequest request) {
         User admin = authenticateAdmin(authorization);
         return ResponseEntity.ok(Map.of("sent", notificationService.broadcast(request, admin)));

@@ -23,7 +23,7 @@ public class NotificationController {
 
     @GetMapping
     public ResponseEntity<List<NotificationResponse>> getNotifications(
-            @RequestHeader("Authorization") String authorization,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(defaultValue = "50") int limit) {
         User user = authenticate(authorization);
         return ResponseEntity.ok(notificationService.getNotifications(user.getId(), limit));
@@ -31,14 +31,14 @@ public class NotificationController {
 
     @GetMapping("/unread-count")
     public ResponseEntity<Map<String, Long>> getUnreadCount(
-            @RequestHeader("Authorization") String authorization) {
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
         User user = authenticate(authorization);
         return ResponseEntity.ok(Map.of("count", notificationService.getUnreadCount(user.getId())));
     }
 
     @PatchMapping("/{id}/read")
     public ResponseEntity<NotificationResponse> markRead(
-            @RequestHeader("Authorization") String authorization,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable Long id) {
         User user = authenticate(authorization);
         return ResponseEntity.ok(notificationService.markRead(id, user.getId()));
@@ -46,7 +46,7 @@ public class NotificationController {
 
     @PatchMapping("/read-all")
     public ResponseEntity<Map<String, Integer>> markAllRead(
-            @RequestHeader("Authorization") String authorization) {
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
         User user = authenticate(authorization);
         return ResponseEntity.ok(Map.of("updated", notificationService.markAllRead(user.getId())));
     }
