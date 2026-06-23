@@ -29,11 +29,7 @@ public class UserProfileController {
 
     @GetMapping("/me")
     public ResponseEntity<UserResponse> getMe(@RequestHeader(value = "Authorization", required = false) String authorization) {
-        if (authorization == null || !authorization.startsWith(BEARER_PREFIX)) {
-            throw new RuntimeException("Thiếu token xác thực");
-        }
-
-        String token = authorization.substring(BEARER_PREFIX.length());
+        String token = resolveBearerToken(authorization);
         if (!jwtService.isValid(token)) {
             throw new RuntimeException("Token không hợp lệ hoặc đã hết hạn");
         }
@@ -96,11 +92,7 @@ public class UserProfileController {
     }
 
     private User authenticateAndGetUser(String authorization) {
-        if (authorization == null || !authorization.startsWith(BEARER_PREFIX)) {
-            throw new RuntimeException("Thiếu token xác thực");
-        }
-
-        String token = authorization.substring(BEARER_PREFIX.length());
+        String token = resolveBearerToken(authorization);
         if (!jwtService.isValid(token)) {
             throw new RuntimeException("Token không hợp lệ hoặc đã hết hạn");
         }
@@ -108,5 +100,22 @@ public class UserProfileController {
         String username = jwtService.extractUsername(token);
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
+    }
+
+    private String resolveBearerToken(String authorization) {
+        if (authorization == null || authorization.isBlank()) {
+            throw new RuntimeException("Thiếu token xác thực");
+        }
+
+        String trimmed = authorization.trim();
+        if (trimmed.toLowerCase().startsWith(BEARER_PREFIX.toLowerCase())) {
+            String token = trimmed.substring(BEARER_PREFIX.length()).trim();
+            if (token.isBlank()) {
+                throw new RuntimeException("Thiếu token xác thực");
+            }
+            return token;
+        }
+
+        throw new RuntimeException("Thiếu token xác thực");
     }
 }

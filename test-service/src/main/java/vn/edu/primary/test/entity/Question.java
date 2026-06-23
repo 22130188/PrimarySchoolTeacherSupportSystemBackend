@@ -6,6 +6,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import java.time.LocalDateTime;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
 @Table(name = "test_questions")
@@ -19,7 +22,7 @@ public class Question {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "test_id", nullable = false)
+    @JoinColumn(name = "test_id", nullable = true)
     @JsonBackReference
     private Test test;
 
@@ -66,4 +69,21 @@ public class Question {
 
     @Column
     private Integer orderIndex;
+
+    @Column(name = "created_by")
+    private Long createdBy;
+
+    @Column(name = "created_by_name")
+    private String createdByName;
+
+    @Column(name = "is_shared")
+    private Boolean isShared;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = true, updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 }
