@@ -121,6 +121,9 @@ public class TestServiceImpl implements TestService {
                         .imageUrl(q.getImageUrl())
                         .transcript(q.getTranscript())
                         .orderIndex(request.getQuestions().indexOf(q))
+                        .createdBy(userId)
+                        .createdByName(userName)
+                        .isShared(false)
                         .build())
                 .collect(Collectors.toList());
 
@@ -549,38 +552,71 @@ public class TestServiceImpl implements TestService {
     public List<QuestionDTO> getFilteredQuestions(Long userId, String filterType, String subject, String lessonContent, String testType) {
         log.info("Getting filtered questions for user: {} with filterType: {}, subject: {}, lessonContent: {}, testType: {}", 
                 userId, filterType, subject, lessonContent, testType);
+        System.out.println("=== DEBUG: getFilteredQuestions START ===");
+        System.out.println("userId: " + userId);
+        System.out.println("filterType: " + filterType);
+        System.out.println("subject: " + subject);
+        System.out.println("lessonContent: " + lessonContent);
+        System.out.println("testType: " + testType);
         
         List<Question> questions;
         
         if ("my-questions".equals(filterType)) {
-            questions = questionRepository.findByTest_CreatedByOrderByIdDesc(userId);
+            System.out.println("Fetching MY OWN questions where createdBy = " + userId);
+            questions = questionRepository.findByCreatedByOrderByCreatedAtDesc(userId);
+            System.out.println("Found " + questions.size() + " questions created by user");
         } else if ("other-questions".equals(filterType)) {
-            questions = questionRepository.findByTest_CreatedByNotOrderByIdDesc(userId);
+            System.out.println("Fetching SHARED questions from OTHER users (isShared=true, createdBy != " + userId + ")");
+            questions = questionRepository.findSharedQuestionsFromOthersOrderByCreatedAtDesc(userId);
+            System.out.println("Found " + questions.size() + " shared questions from others");
         } else {
-            questions = questionRepository.findAllOrderByIdDesc();
+            System.out.println("Fetching ALL questions (own + shared)");
+            questions = questionRepository.findOwnOrSharedQuestionsOrderByCreatedAtDesc(userId);
+            System.out.println("Found " + questions.size() + " total questions");
         }
         
-        return questions.stream()
+        System.out.println("Questions before filtering: " + questions.size());
+        for (int i = 0; i < questions.size(); i++) {
+            Question q = questions.get(i);
+            System.out.println("  Question " + i + ": id=" + q.getId() + ", createdBy=" + q.getCreatedBy() + 
+                    ", isShared=" + q.getIsShared() + ", testId=" + (q.getTest() != null ? q.getTest().getId() : "null"));
+        }
+        
+        List<QuestionDTO> result = questions.stream()
                 .filter(q -> {
+                    boolean passFilter = true;
+                    String filterReason = "";
+                    
                     if (subject != null && !subject.isEmpty() && q.getTest() != null) {
                         if (!subject.equalsIgnoreCase(q.getTest().getSubject())) {
-                            return false;
+                            passFilter = false;
+                            filterReason += "subject mismatch (" + q.getTest().getSubject() + " != " + subject + ") ";
                         }
                     }
                     if (lessonContent != null && !lessonContent.isEmpty() && q.getTest() != null) {
                         if (!lessonContent.equalsIgnoreCase(q.getTest().getLessonContentName())) {
-                            return false;
+                            passFilter = false;
+                            filterReason += "lesson mismatch (" + q.getTest().getLessonContentName() + " != " + lessonContent + ") ";
                         }
                     }
                     if (testType != null && !testType.isEmpty() && q.getTest() != null && q.getTest().getTestType() != null) {
                         if (!testType.equalsIgnoreCase(q.getTest().getTestType().name())) {
-                            return false;
+                            passFilter = false;
+                            filterReason += "testType mismatch (" + q.getTest().getTestType().name() + " != " + testType + ") ";
                         }
                     }
-                    return true;
+                    
+                    if (!passFilter) {
+                        System.out.println("  Question " + q.getId() + " filtered out: " + filterReason);
+                    }
+                    return passFilter;
                 })
                 .map(this::convertToQuestionDTO)
                 .collect(Collectors.toList());
+        
+        System.out.println("Questions after filtering: " + result.size());
+        System.out.println("=== DEBUG: getFilteredQuestions END ===");
+        return result;
     }
 
 

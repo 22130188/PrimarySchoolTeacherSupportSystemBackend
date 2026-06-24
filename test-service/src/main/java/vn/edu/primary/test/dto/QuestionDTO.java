@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.primary.test.entity.QuestionType;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -70,7 +72,17 @@ public class QuestionDTO {
     
     @JsonProperty("rubric")
     private String rubric;
+
+    @JsonProperty("isShared")
+    private Boolean isShared;
+
+    @JsonProperty(value = "createdAt", access = JsonProperty.Access.READ_ONLY)
+    private LocalDateTime createdAt;
+
+    @JsonProperty(value = "updatedAt", access = JsonProperty.Access.READ_ONLY)
+    private LocalDateTime updatedAt;
     
+    @JsonIgnore
     public QuestionType getQuestionType() {
         if (type == null) {
             return QuestionType.MULTIPLE_CHOICE;

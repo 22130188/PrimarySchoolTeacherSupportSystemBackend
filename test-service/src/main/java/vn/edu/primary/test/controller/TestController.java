@@ -1091,37 +1091,57 @@ public class TestController {
         return userInfo.getUsername();
     }
 
-    private UserInfo resolveUserInfo(String token) {
-        if (token == null || !token.startsWith("Bearer ")) {
+    private String resolveJwt(String authorizationHeader) {
+        if (authorizationHeader == null || authorizationHeader.isBlank()) {
             throw new RuntimeException("Authorization header missing or invalid");
         }
 
-        log.info("Resolving user info from token");
-        UserInfo userInfo = fetchUserInfoFromGateway(token);
-        if (userInfo != null && userInfo.getId() != null && userInfo.getUsername() != null) {
-            log.info("Resolved user info from gateway: id={}, username={}", userInfo.getId(), userInfo.getUsername());
-            return userInfo;
+        String trimmed = authorizationHeader.trim();
+        if (trimmed.toLowerCase().startsWith("bearer ")) {
+            trimmed = trimmed.substring(7).trim();
         }
 
-        log.warn("Gateway user/me resolution failed, falling back to local JWT parsing");
-        String jwt = token.substring(7);
+        if (trimmed.isBlank() || "undefined".equalsIgnoreCase(trimmed) || "null".equalsIgnoreCase(trimmed)) {
+            throw new RuntimeException("Authorization token missing or invalid");
+        }
+
+        return trimmed;
+    }
+
+    private String buildAuthorizationHeader(String rawHeader) {
+        String jwt = resolveJwt(rawHeader);
+        return "Bearer " + jwt;
+    }
+
+    private UserInfo resolveUserInfo(String token) {
+        String jwt = resolveJwt(token);
+        String authorizationHeader = buildAuthorizationHeader(token);
+
         if (jwtProvider.validateToken(jwt)) {
             String username = jwtProvider.extractUsername(jwt);
             Long userId = jwtProvider.extractUserId(jwt);
             log.info("Local JWT parse result: username={}, userId={}", username, userId);
-            if (username != null && !username.isEmpty()) {
-                if (userId != null) {
-                    return new UserInfo(userId, username);
-                }
-
-                log.info("JWT token did not contain userId claim, resolving by user service using username");
-                UserInfo resolvedUserInfo = tryFetchUserInfo(userServiceUrl + "/user/me", token);
-                if (resolvedUserInfo != null && resolvedUserInfo.getId() != null && resolvedUserInfo.getUsername() != null) {
-                    return resolvedUserInfo;
-                }
+            if (username != null && !username.isEmpty() && userId != null) {
+                return new UserInfo(userId, username);
             }
         } else {
-            log.warn("Local JWT validation failed");
+            log.warn("Local JWT validation failed, attempting gateway lookup");
+        }
+
+        log.info("Resolving user info from gateway/user-service");
+        UserInfo userInfo = fetchUserInfoFromGateway(authorizationHeader);
+        if (userInfo != null && userInfo.getId() != null && userInfo.getUsername() != null) {
+            log.info("Resolved user info from gateway/user-service: id={}, username={}", userInfo.getId(), userInfo.getUsername());
+            return userInfo;
+        }
+
+        if (jwtProvider.validateToken(jwt)) {
+            String username = jwtProvider.extractUsername(jwt);
+            Long userId = jwtProvider.extractUserId(jwt);
+            if (username != null && !username.isEmpty()) {
+                log.warn("Gateway/user-service lookup failed; returning user info from valid local JWT");
+                return new UserInfo(userId, username);
+            }
         }
 
         throw new RuntimeException("Unable to resolve user info from token");
