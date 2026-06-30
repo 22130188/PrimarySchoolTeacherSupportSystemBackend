@@ -12,6 +12,8 @@ public class SharedDraftResponse {
     private String title;
     private String subject;
     private String grade;
+    private String volume;
+    private String book;
     private String type;
     private LessonDraftStatus status;
     private String canvasJson;

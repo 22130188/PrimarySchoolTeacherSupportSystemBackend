@@ -15,6 +15,10 @@ public class SaveDraftRequest {
     @NotBlank(message = "Lớp không được để trống")
     private String grade;
 
+    private String volume;
+
+    private String book;
+
     @NotBlank(message = "Loại bài giảng không được để trống")
     private String type;
 

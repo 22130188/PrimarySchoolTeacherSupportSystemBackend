@@ -27,6 +27,12 @@ public class LessonDraft {
     @Column(nullable = false)
     private String grade;
 
+    @Column(length = 50)
+    private String volume;
+
+    @Column(length = 100)
+    private String book;
+
     @Column(nullable = false)
     private String type;
 
