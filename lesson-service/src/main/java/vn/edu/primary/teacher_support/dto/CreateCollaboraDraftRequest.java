@@ -18,6 +18,10 @@ public class CreateCollaboraDraftRequest {
     @NotBlank(message = "Lop khong duoc de trong")
     private String grade;
 
+    private String volume;
+
+    private String book;
+
     @NotBlank(message = "Loai Collabora khong duoc de trong")
     private String type;
 }

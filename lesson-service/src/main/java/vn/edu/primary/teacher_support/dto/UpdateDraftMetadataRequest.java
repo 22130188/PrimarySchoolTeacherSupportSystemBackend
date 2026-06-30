@@ -18,4 +18,8 @@ public class UpdateDraftMetadataRequest {
 
     @NotBlank(message = "Lớp không được để trống")
     private String grade;
+
+    private String volume;
+
+    private String book;
 }

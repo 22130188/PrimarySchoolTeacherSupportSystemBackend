@@ -28,6 +28,8 @@ public class LessonDraftService {
             draft.setTitle(request.getTitle());
             draft.setSubject(request.getSubject());
             draft.setGrade(request.getGrade());
+            draft.setVolume(blankToNull(request.getVolume()));
+            draft.setBook(blankToNull(request.getBook()));
             draft.setType(request.getType());
             draft.setCanvasJson(request.getCanvasJson());
         } else {
@@ -36,6 +38,8 @@ public class LessonDraftService {
                     .title(request.getTitle())
                     .subject(request.getSubject())
                     .grade(request.getGrade())
+                    .volume(blankToNull(request.getVolume()))
+                    .book(blankToNull(request.getBook()))
                     .type(request.getType())
                     .canvasJson(request.getCanvasJson())
                     .build();
@@ -74,6 +78,8 @@ public class LessonDraftService {
                 .title(draft.getTitle())
                 .subject(draft.getSubject())
                 .grade(draft.getGrade())
+                .volume(draft.getVolume())
+                .book(draft.getBook())
                 .type(draft.getType())
                 .status(draft.getStatus())
                 .canvasJson(draft.getCanvasJson())
@@ -88,6 +94,8 @@ public class LessonDraftService {
                 .title(draft.getTitle())
                 .subject(draft.getSubject())
                 .grade(draft.getGrade())
+                .volume(draft.getVolume())
+                .book(draft.getBook())
                 .type(draft.getType())
                 .status(draft.getStatus())
                 .createdAt(draft.getCreatedAt())
@@ -101,6 +109,8 @@ public class LessonDraftService {
         draft.setTitle(request.getTitle());
         draft.setSubject(request.getSubject());
         draft.setGrade(request.getGrade());
+        draft.setVolume(blankToNull(request.getVolume()));
+        draft.setBook(blankToNull(request.getBook()));
         draft = draftRepository.save(draft);
         return toSummaryResponse(draft);
     }
@@ -126,12 +136,18 @@ public class LessonDraftService {
                 .title(draft.getTitle())
                 .subject(draft.getSubject())
                 .grade(draft.getGrade())
+                .volume(draft.getVolume())
+                .book(draft.getBook())
                 .type(draft.getType())
                 .status(draft.getStatus())
                 .createdByName(createdByName)
                 .createdAt(draft.getCreatedAt())
                 .updatedAt(draft.getUpdatedAt())
                 .build();
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     public DraftResponse updateStatus(Long id, Long userId, LessonDraftStatus status) {

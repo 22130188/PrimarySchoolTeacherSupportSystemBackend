@@ -45,6 +45,8 @@ public class CollaboraController {
                 request.getTitle(),
                 request.getSubject(),
                 request.getGrade(),
+                request.getVolume(),
+                request.getBook(),
                 request.getType()
         ));
     }
@@ -55,10 +57,12 @@ public class CollaboraController {
             @RequestParam("file") MultipartFile file,
             @RequestParam String title,
             @RequestParam String subject,
-            @RequestParam String grade
+            @RequestParam String grade,
+            @RequestParam(required = false) String volume,
+            @RequestParam(required = false) String book
     ) {
         Long userId = authHelper.extractUserId(authorization);
-        return ResponseEntity.ok(collaboraSessionService.uploadDraft(userId, file, title, subject, grade));
+        return ResponseEntity.ok(collaboraSessionService.uploadDraft(userId, file, title, subject, grade, volume, book));
     }
 
     @GetMapping("/api/lessons/drafts/collabora/drafts/{draftId}/editor")

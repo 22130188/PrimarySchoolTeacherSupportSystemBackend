@@ -71,7 +71,7 @@ public class CollaboraSessionService {
     @Value("${collabora.asset-public-url:http://host.docker.internal:8087/api/lessons/drafts/collabora/assets}")
     private String assetPublicUrl;
 
-    public DraftResponse createDraft(Long userId, String title, String subject, String grade, String type) {
+    public DraftResponse createDraft(Long userId, String title, String subject, String grade, String volume, String book, String type) {
         String normalizedType = normalizeType(type);
         String extension = extensionForType(normalizedType);
         String fileId = "lesson-" + userId + "-" + UUID.randomUUID() + "." + extension;
@@ -88,6 +88,8 @@ public class CollaboraSessionService {
                     .title(stripExtension(fileName, extension))
                     .subject(subject)
                     .grade(grade)
+                    .volume(blankToNull(volume))
+                    .book(blankToNull(book))
                     .type(normalizedType)
                     .canvasJson(objectMapper.writeValueAsString(Map.of(
                             "collaboraFileId", fileId,
@@ -102,7 +104,7 @@ public class CollaboraSessionService {
         }
     }
 
-    public DraftResponse uploadDraft(Long userId, MultipartFile file, String title, String subject, String grade) {
+    public DraftResponse uploadDraft(Long userId, MultipartFile file, String title, String subject, String grade, String volume, String book) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException("Vui long chon file de tai len");
         }
@@ -134,6 +136,8 @@ public class CollaboraSessionService {
                     .title(stripExtension(fileName, extension))
                     .subject(subject)
                     .grade(grade)
+                    .volume(blankToNull(volume))
+                    .book(blankToNull(book))
                     .type(type)
                     .canvasJson(objectMapper.writeValueAsString(Map.of(
                             "collaboraFileId", fileId,
@@ -439,12 +443,18 @@ public class CollaboraSessionService {
                 .title(draft.getTitle())
                 .subject(draft.getSubject())
                 .grade(draft.getGrade())
+                .volume(draft.getVolume())
+                .book(draft.getBook())
                 .type(draft.getType())
                 .status(draft.getStatus())
                 .canvasJson(draft.getCanvasJson())
                 .createdAt(draft.getCreatedAt())
                 .updatedAt(draft.getUpdatedAt())
                 .build();
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private String normalizeType(String type) {

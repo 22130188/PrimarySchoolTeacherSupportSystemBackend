@@ -189,6 +189,8 @@ public class LessonTemplateService {
                 .title(draft.getTitle())
                 .subject(draft.getSubject())
                 .grade(draft.getGrade())
+                .volume(draft.getVolume())
+                .book(draft.getBook())
                 .type(draft.getType())
                 .status(draft.getStatus())
                 .canvasJson(draft.getCanvasJson())
