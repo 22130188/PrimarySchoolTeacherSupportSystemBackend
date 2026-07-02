@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: translate-service
+
+server:
+  port: 8089
+  servlet:
+    context-path: /api/translate
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: false
+    hostname: localhost
+
+# Python Translation API
+python:
+  api:
+    url: http://localhost:8001
+    timeout: 60000
+
+# JWT Configuration
+jwt:
+  secret-key: your_super_secret_key_change_in_production_very_long_string
+  expiration: 86400000  # 24 hours
+
+logging:
+  level:
+    vn.edu.primary.translate: DEBUG
+    org.springframework.web: DEBUG

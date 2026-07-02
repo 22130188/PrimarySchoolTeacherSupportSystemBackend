@@ -30,6 +30,7 @@
         <module>classroom-service</module>
         <module>lesson-service</module>
         <module>textbook-service</module>
+        <module>translate-service</module>
     </modules>
 
     <properties>
