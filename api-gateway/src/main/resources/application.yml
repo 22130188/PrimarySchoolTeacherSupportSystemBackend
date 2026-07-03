@@ -71,6 +71,11 @@ spring:
           predicates:
             - Path=/api/textbooks/**
 
+        - id: translate-service
+          uri: lb://translate-service
+          predicates:
+            - Path=/api/translate/**
+
 eureka:
   client:
     service-url:
