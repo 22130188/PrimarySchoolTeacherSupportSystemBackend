@@ -5,9 +5,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -70,6 +79,9 @@ public class CollaboraSessionService {
 
     @Value("${collabora.asset-public-url:http://host.docker.internal:8087/api/lessons/drafts/collabora/assets}")
     private String assetPublicUrl;
+
+    @Value("${python.api.url:http://localhost:8001}")
+    private String pythonApiUrl;
 
     public DraftResponse createDraft(Long userId, String title, String subject, String grade, String volume, String book, String type) {
         String normalizedType = normalizeType(type);
@@ -154,6 +166,54 @@ public class CollaboraSessionService {
         }
     }
 
+    public DraftResponse translateDraft(Long userId, Long draftId, String sourceLang, String targetLang, String title) {
+        if (sourceLang == null || sourceLang.isBlank() || targetLang == null || targetLang.isBlank()) {
+            throw new BusinessException("Vui long chon ngon ngu dich");
+        }
+        if (sourceLang.equalsIgnoreCase(targetLang)) {
+            throw new BusinessException("Ngon ngu goc va ngon ngu dich phai khac nhau");
+        }
+
+        LessonDraft original = draftRepository.findByIdAndUserId(draftId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay bai giang Collabora"));
+        if (!ALLOWED_TYPES.contains(original.getType())) {
+            throw new BusinessException("Bai giang nay khong phai dinh dang Collabora");
+        }
+
+        CollaboraMetadata metadata = readMetadata(original);
+        String newTitle = title == null || title.isBlank()
+                ? original.getTitle() + " (" + targetLang.toUpperCase() + ")"
+                : title.trim();
+        String fileName = safeFileName(newTitle, metadata.extension());
+        String fileId = "lesson-" + userId + "-" + UUID.randomUUID() + "." + metadata.extension();
+
+        try {
+            byte[] originalContent = supabaseStorageService.downloadFile(metadata.fileId());
+            byte[] translatedContent = translateOfficeFile(originalContent, metadata.fileName(), sourceLang, targetLang);
+            supabaseStorageService.uploadFile(fileId, translatedContent, contentType(metadata.extension()));
+
+            LessonDraft draft = LessonDraft.builder()
+                    .userId(userId)
+                    .title(stripExtension(fileName, metadata.extension()))
+                    .subject(original.getSubject())
+                    .grade(original.getGrade())
+                    .volume(original.getVolume())
+                    .book(original.getBook())
+                    .type(original.getType())
+                    .canvasJson(objectMapper.writeValueAsString(Map.of(
+                            "collaboraFileId", fileId,
+                            "fileName", fileName,
+                            "extension", metadata.extension()
+                    )))
+                    .build();
+            draft = draftRepository.save(draft);
+            return toResponse(draft);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException("Khong the tao bai giang Collabora da dich: " + e.getMessage());
+        }
+    }
     public CollaboraEditorSessionResponse getEditorSession(Long userId, Long draftId) {
         LessonDraft ownedDraft = draftRepository.findByIdAndUserId(draftId, userId).orElse(null);
         if (ownedDraft != null) {
@@ -389,7 +449,41 @@ public class CollaboraSessionService {
         }
     }
 
-    private String resolveActionUrl(String extension, String actionName) {
+    private byte[] translateOfficeFile(byte[] content, String fileName, String sourceLang, String targetLang) {
+        String extension = extensionFromFileName(fileName);
+        String uploadFileName = "lesson." + extension;
+        try {
+            ByteArrayResource resource = new ByteArrayResource(content) {
+                @Override
+                public String getFilename() {
+                    return uploadFileName;
+                }
+            };
+
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", resource);
+            body.add("source_lang", sourceLang);
+            body.add("target_lang", targetLang);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+            HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
+            ResponseEntity<byte[]> response = new RestTemplate().postForEntity(
+                    pythonApiUrl.replaceAll("/+$", "") + "/api/translate/document/file",
+                    request,
+                    byte[].class
+            );
+            return response.getBody() == null ? new byte[0] : response.getBody();
+        } catch (HttpStatusCodeException e) {
+            throw new BusinessException("Dich file Collabora that bai. Ma loi: " + e.getStatusCode().value() + ". " + e.getResponseBodyAsString(StandardCharsets.UTF_8));
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException("Khong the goi dich file Collabora: " + e.getMessage());
+        }
+    }
+private String resolveActionUrl(String extension, String actionName) {
         String cacheKey = extension + ":" + actionName;
         if (actionUrlCache.containsKey(cacheKey)) {
             return actionUrlCache.get(cacheKey);
