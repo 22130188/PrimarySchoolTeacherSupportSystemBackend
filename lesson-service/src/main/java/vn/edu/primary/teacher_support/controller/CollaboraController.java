@@ -18,6 +18,7 @@ import vn.edu.primary.teacher_support.dto.CollaboraAssetResponse;
 import vn.edu.primary.teacher_support.dto.CreateCollaboraDraftRequest;
 import vn.edu.primary.teacher_support.dto.CollaboraEditorSessionResponse;
 import vn.edu.primary.teacher_support.dto.DraftResponse;
+import vn.edu.primary.teacher_support.dto.TranslateCollaboraDraftRequest;
 import vn.edu.primary.teacher_support.service.AuthHelper;
 import vn.edu.primary.teacher_support.service.CollaboraSessionService;
 
@@ -65,6 +66,21 @@ public class CollaboraController {
         return ResponseEntity.ok(collaboraSessionService.uploadDraft(userId, file, title, subject, grade, volume, book));
     }
 
+    @PostMapping("/api/lessons/drafts/collabora/drafts/{draftId}/translate")
+    public ResponseEntity<DraftResponse> translateDraft(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long draftId,
+            @Valid @RequestBody TranslateCollaboraDraftRequest request
+    ) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(collaboraSessionService.translateDraft(
+                userId,
+                draftId,
+                request.getEffectiveSourceLang(),
+                request.getEffectiveTargetLang(),
+                request.getTitle()
+        ));
+    }
     @GetMapping("/api/lessons/drafts/collabora/drafts/{draftId}/editor")
     public ResponseEntity<CollaboraEditorSessionResponse> getEditorSession(
             @RequestHeader("Authorization") String authorization,

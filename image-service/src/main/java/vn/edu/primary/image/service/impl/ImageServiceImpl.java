@@ -15,8 +15,8 @@ import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -137,19 +137,35 @@ public class ImageServiceImpl implements ImageService {
     }
 
     private void deleteFromCloudinary(String imageUrl) throws Exception {
-        if (imageUrl == null || imageUrl.isEmpty()) return;
-
-        // Extract public_id from URL
-        // URL format: https://res.cloudinary.com/{cloud_name}/image/upload/v{timestamp}/{folder}/{public_id}.{format}
-        String[] parts = imageUrl.split("/");
-        if (parts.length < 8) return;
-
-        String publicIdWithFolder = parts[7] + "/" + parts[8].split("\\.")[0];
+        String publicId = extractCloudinaryPublicId(imageUrl);
+        if (publicId == null || publicId.isBlank()) return;
 
         Map<String, Object> deleteParams = ObjectUtils.asMap(
             "resource_type", "image"
         );
 
-        cloudinary.uploader().destroy(publicIdWithFolder, deleteParams);
+        cloudinary.uploader().destroy(publicId, deleteParams);
+    }
+
+    private String extractCloudinaryPublicId(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank() || !imageUrl.contains("/upload/")) {
+            return null;
+        }
+
+        String path = imageUrl.split("\\?", 2)[0];
+        String[] uploadParts = path.split("/upload/", 2);
+        if (uploadParts.length < 2 || uploadParts[1].isBlank()) {
+            return null;
+        }
+
+        String publicPath = uploadParts[1];
+        publicPath = publicPath.replaceFirst("^v\\d+/", "");
+
+        int extensionIndex = publicPath.lastIndexOf('.');
+        if (extensionIndex > publicPath.lastIndexOf('/')) {
+            publicPath = publicPath.substring(0, extensionIndex);
+        }
+
+        return URLDecoder.decode(publicPath, StandardCharsets.UTF_8);
     }
 }
