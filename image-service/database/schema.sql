@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS image_records (
   -- User information
   user_id BIGINT NOT NULL COMMENT 'ID of user who created the image',
   user_name VARCHAR(255) COMMENT 'Name of user who created the image',
+  subject VARCHAR(255) COMMENT 'Subject name for the saved image',
 
   -- Timestamps
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation time',
