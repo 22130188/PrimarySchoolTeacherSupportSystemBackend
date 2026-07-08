@@ -76,6 +76,16 @@ spring:
           predicates:
             - Path=/api/translate/**
 
+        - id: image-service
+          uri: lb://image-service
+          predicates:
+            - Path=/images/**,/save,/generate
+
+        - id: python-canvas-api
+          uri: http://localhost:8001
+          predicates:
+            - Path=/api/canvas/**,/api/image/**
+
 eureka:
   client:
     service-url:
