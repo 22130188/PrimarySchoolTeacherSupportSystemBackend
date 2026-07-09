@@ -77,7 +77,7 @@ spring:
             - Path=/api/translate/**
 
         - id: image-service
-          uri: lb://image-service
+          uri: http://localhost:8083
           predicates:
             - Path=/images/**,/save,/generate
 
