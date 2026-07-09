@@ -51,7 +51,7 @@ public class ImageServiceImpl implements ImageService {
         if (pythonEndpoint.endsWith("/image")) {
             pythonEndpoint += "/generate";
         } else {
-            pythonEndpoint += "/image/generate";
+            pythonEndpoint += "/api/image/generate";
         }
 
         Map<String, Object> responseFromPython = restTemplate.postForObject(
