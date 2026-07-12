@@ -29,22 +29,16 @@ public class UserProfileService {
 
     @Transactional
     public User updatePersonal(User user, UpdatePersonalRequest request) {
-        // Kiểm tra xem tên người dùng đã được người dùng khác sử dụng chưa
-        if (!user.getUsername().equals(request.getUsername())) {
-            if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-                throw new RuntimeException("Username đã được sử dụng");
-            }
-        }
-
-        // Kiểm tra xem email đó đã được người dùng khác sử dụng chưa
-        if (!user.getEmail().equals(request.getEmail())) {
+        // Không đổi username (JWT subject) — chỉ cập nhật họ tên hiển thị.
+        if (request.getEmail() != null && user.getEmail() != null
+                && !user.getEmail().equals(request.getEmail())) {
             if (userRepository.findByEmail(request.getEmail()).isPresent()) {
                 throw new RuntimeException("Email đã được sử dụng");
             }
+            user.setEmail(request.getEmail());
         }
 
-        user.setUsername(request.getUsername());
-        user.setEmail(request.getEmail());
+        user.setFullName(request.getFullName() == null ? null : request.getFullName().trim());
         user.setDateOfBirth(request.getDateOfBirth());
         user.setGender(request.getGender());
         user.setPosition(request.getPosition());

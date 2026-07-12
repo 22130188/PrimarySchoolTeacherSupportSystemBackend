@@ -20,9 +20,12 @@ import java.util.List;
 public class SecurityConfig {
 
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final OAuth2AuthenticationFailureHandler oAuth2FailureHandler;
 
-    public SecurityConfig(OAuth2SuccessHandler oAuth2SuccessHandler) {
+    public SecurityConfig(OAuth2SuccessHandler oAuth2SuccessHandler,
+                          OAuth2AuthenticationFailureHandler oAuth2FailureHandler) {
         this.oAuth2SuccessHandler = oAuth2SuccessHandler;
+        this.oAuth2FailureHandler = oAuth2FailureHandler;
     }
 
     @Bean
@@ -33,7 +36,7 @@ public class SecurityConfig {
                 .requestCache(cache -> cache.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/user/**", "/api/guides/**", "/login/oauth2/**", "/oauth2/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/user/**", "/api/guides/**", "/api/action-logs/**", "/login/oauth2/**", "/oauth2/**").permitAll()
                         .requestMatchers("/api/admin/**").permitAll()
                         .requestMatchers("/api/internal/**").permitAll()
                         .anyRequest().authenticated()
@@ -42,7 +45,7 @@ public class SecurityConfig {
 
                 // ── Thêm OAuth2 login ──
                 .oauth2Login(oauth2 -> oauth2
-                        .failureHandler(oAuth2AuthenticationFailureHandler())
+                        .failureHandler(oAuth2FailureHandler)
                         .successHandler(oAuth2SuccessHandler)
                         // URL Google sẽ redirect về sau khi login thành công
                         .authorizationEndpoint(auth ->
@@ -55,11 +58,6 @@ public class SecurityConfig {
                 );
 
         return http.build();
-    }
-
-    @Bean
-    public AuthenticationFailureHandler oAuth2AuthenticationFailureHandler() {
-        return new OAuth2AuthenticationFailureHandler();
     }
 
     @Bean

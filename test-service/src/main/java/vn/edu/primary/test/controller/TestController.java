@@ -27,6 +27,7 @@ import vn.edu.primary.test.security.JwtProvider;
 import vn.edu.primary.test.service.LessonContentService;
 import vn.edu.primary.test.service.TestService;
 import vn.edu.primary.test.service.NotificationClient;
+import vn.edu.primary.test.service.ActionLogClient;
 
 import java.util.List;
 import java.util.Map;
@@ -66,6 +67,7 @@ public class TestController {
     private final TestRepository testRepository;
     private final ObjectMapper objectMapper;
     private final NotificationClient notificationClient;
+    private final ActionLogClient actionLogClient;
 
     @Value("${python.api.url:http://localhost:8001}")
     private String pythonApiUrl;
@@ -102,6 +104,7 @@ public class TestController {
             }
             
             TestResponse response = testService.createTest(request, userId, userName);
+            logTestMutation("CREATE", request.getTestType(), response, userName);
             return ResponseEntity.ok(ApiResponse.success("Test created successfully", response));
         } catch (Exception e) {
             log.error("Error creating test", e);
@@ -944,7 +947,10 @@ public class TestController {
         try {
             log.info("Updating test: {}", testId);
             Long userId = extractUserIdFromToken(token);
+            String userName = extractUsernameFromToken(token);
             TestResponse response = testService.updateTest(testId, request, userId);
+            logTestMutation("UPDATE", request.getTestType() != null ? request.getTestType() : response.getTestType(),
+                    response, userName);
             return ResponseEntity.ok(ApiResponse.success("Test updated successfully", response));
         } catch (Exception e) {
             log.error("Error updating test", e);
@@ -960,13 +966,48 @@ public class TestController {
         try {
             log.info("Deleting test: {}", testId);
             Long userId = extractUserIdFromToken(token);
+            String userName = extractUsernameFromToken(token);
+            TestResponse existing = null;
+            try {
+                existing = testService.getTestById(testId, userId);
+            } catch (Exception ignored) {
+                // best-effort for action log
+            }
             testService.deleteTest(testId, userId);
+            if (existing != null) {
+                logTestMutation("DELETE", existing.getTestType(), existing, userName);
+            } else {
+                actionLogClient.log(userName, "DELETE_TESTS", "tests", String.valueOf(testId),
+                        "DELETE", "/api/tests/" + testId, "ALERT", "SUCCESS", null);
+            }
             return ResponseEntity.ok(ApiResponse.success("Test deleted successfully", null));
         } catch (Exception e) {
             log.error("Error deleting test", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error("Error deleting test: " + e.getMessage()));
         }
+    }
+
+    private void logTestMutation(String verb, String testType, TestResponse response, String username) {
+        if (response == null) return;
+        boolean exercise = testType != null && "EXERCISE".equalsIgnoreCase(testType);
+        String action = verb + (exercise ? "_EXERCISE" : "_EXAM");
+        String module = exercise ? "exercises" : "tests";
+        String name = response.getName() == null ? "" : response.getName().replace("\\", "\\\\").replace("\"", "\\\"");
+        String httpMethod = "CREATE".equals(verb) ? "POST" : "UPDATE".equals(verb) ? "PUT" : "DELETE";
+        String endpoint = "CREATE".equals(verb) ? "/api/tests" : "/api/tests/" + response.getId();
+        actionLogClient.log(
+                username,
+                action,
+                module,
+                response.getId() == null ? null : String.valueOf(response.getId()),
+                httpMethod,
+                endpoint,
+                "DELETE".equals(verb) ? "ALERT" : "WARNING",
+                "SUCCESS",
+                "{\"testType\":\"" + (testType == null ? "" : testType)
+                        + "\",\"name\":\"" + name + "\"}"
+        );
     }
 
     @DeleteMapping("/admin/{testId}")

@@ -75,6 +75,11 @@ public class AuthController {
         return ResponseEntity.ok(new LoginResponse(token, roleId, roleName));
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout() {
+        return ResponseEntity.noContent().build();
+    }
+
     /**
      * Call classroom-service to resolve WAITING_REGISTER invitations
      * after a user successfully registers.
