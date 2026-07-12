@@ -32,7 +32,7 @@ spring:
         - id: user-service
           uri: lb://user-service
           predicates:
-            - Path=/api/user/**,/api/admin/users/**,/api/admin/categories/**,/api/admin/notifications/**,/api/auth/login,/api/auth/register,/api/auth/send-otp,/api/auth/verify-otp,/oauth2/**,/login/oauth2/**,/api/internal/users/**
+            - Path=/api/user/**,/api/admin/users/**,/api/admin/categories/**,/api/admin/notifications/**,/api/admin/guides/**,/api/guides/**,/api/admin/feedback/**,/api/user/feedback,/api/auth/login,/api/auth/register,/api/auth/send-otp,/api/auth/verify-otp,/oauth2/**,/login/oauth2/**
 
         - id: auth-service
           uri: lb://auth-service
@@ -75,7 +75,7 @@ spring:
             - Path=/api/translate/**
 
         - id: image-service
-          uri: lb://image-service
+          uri: http://localhost:8083
           predicates:
             - Path=/images/**,/save,/generate
 
