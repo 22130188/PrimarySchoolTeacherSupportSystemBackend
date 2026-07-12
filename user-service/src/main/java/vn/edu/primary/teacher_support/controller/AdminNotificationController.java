@@ -38,7 +38,7 @@ public class AdminNotificationController {
         if (!jwtService.isValid(token)) throw new RuntimeException("Token không hợp lệ hoặc đã hết hạn");
         User user = userRepository.findByUsername(jwtService.extractUsername(token))
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
-        if (user.getRole() != Role.RoleName.ADMIN) throw new RuntimeException("Bạn không có quyền gửi thông báo");
+        if (user.getRole() != Role.RoleName.ADMIN && user.getRoles().stream().noneMatch(r -> r.getName() == Role.RoleName.ADMIN)) throw new RuntimeException("Bạn không có quyền gửi thông báo");
         return user;
     }
 }
