@@ -17,6 +17,7 @@ public class UserResponse {
 
     private Long id;
     private String username;
+    private String fullName;
     private String email;
     private String avatarUrl;
     private String phone;
@@ -53,6 +54,7 @@ public class UserResponse {
         return UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
+                .fullName(user.getFullName())
                 .email(user.getEmail())
                 .avatarUrl(user.getAvatarUrl())
                 .phone(user.getPhone())
