@@ -50,7 +50,7 @@ public class AdminDashboardController {
         if (!jwtService.isValid(token)) throw new RuntimeException("Token không hợp lệ hoặc đã hết hạn");
         User user = userRepository.findByUsername(jwtService.extractUsername(token))
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
-        if (user.getRole() != Role.RoleName.ADMIN) throw new RuntimeException("Bạn không có quyền xem tổng quan");
+        if (user.getRole() != Role.RoleName.ADMIN && user.getRoles().stream().noneMatch(r -> r.getName() == Role.RoleName.ADMIN)) throw new RuntimeException("Bạn không có quyền xem tổng quan");
     }
 
     public record OverviewResponse(int year, List<MonthlyActivity> monthlyActivity, List<RecentActivity> recentActivities) {}

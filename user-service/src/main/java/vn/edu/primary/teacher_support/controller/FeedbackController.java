@@ -30,7 +30,7 @@ public class FeedbackController {
     public Feedback reply(@RequestHeader(value="Authorization", required=false) String auth, @PathVariable Long id, @Valid @RequestBody ReplyBody body) { User admin=admin(auth); return service.reply(id, admin, new FeedbackService.ReplyRequest(body.message(), body.status())); }
 
     private User authenticate(String authorization) { if (authorization==null || !authorization.startsWith("Bearer ")) throw new RuntimeException("Thiếu token xác thực"); String token=authorization.substring(7); if (!jwtService.isValid(token)) throw new RuntimeException("Token không hợp lệ hoặc đã hết hạn"); return userRepository.findByUsername(jwtService.extractUsername(token)).orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng")); }
-    private User admin(String authorization) { User user=authenticate(authorization); if (user.getRole()!=Role.RoleName.ADMIN) throw new RuntimeException("Bạn không có quyền quản lý phản hồi"); return user; }
+    private User admin(String authorization) { User user=authenticate(authorization); if (user.getRole()!=Role.RoleName.ADMIN && user.getRoles().stream().noneMatch(r -> r.getName()==Role.RoleName.ADMIN)) throw new RuntimeException("Bạn không có quyền quản lý phản hồi"); return user; }
 
     public record CreateBody(@NotBlank String type, @NotBlank @Size(max=180) String title, @NotBlank @Size(min=10,max=3000) String description, @Size(max=1000) String pageUrl, @Size(max=1000) String browserInfo) {}
     public record StatusBody(@NotBlank String status) {}
