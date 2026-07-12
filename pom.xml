@@ -34,6 +34,7 @@
     </modules>
 
     <properties>
+        <maven.compiler.release></maven.compiler.release>
         <java.version>17</java.version>
         <spring-cloud.version>2024.0.0</spring-cloud.version>
     </properties>
