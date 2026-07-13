@@ -47,9 +47,14 @@ public class AuthService {
         User user = new User();
         user.setUsername(req.getUsername());
         user.setEmail(req.getEmail());
-        user.setPassword(passwordEncoder.encode(req.getPassword()));
-        user.setSchoolName(req.getSchoolName());
+        String encodedPassword = passwordEncoder.encode(req.getPassword());
+        user.setPassword(encodedPassword);
+        user.setPasswordHash(encodedPassword);
+        // full_name NOT NULL — dùng username nếu form không có họ tên
+        user.setFullName(req.getUsername());
+        user.setSchoolName(req.getSchoolName() != null ? req.getSchoolName() : "");
         user.setIsEmailVerified(true);
+        user.setIsActive(true);
 
         // Gán role
         Role.RoleName roleName = parseRole(req.getRole());
