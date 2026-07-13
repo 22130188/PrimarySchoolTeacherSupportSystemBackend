@@ -79,6 +79,17 @@ public class TestController {
     @Value("${user.service.url:http://localhost:8082/api}")
     private String userServiceUrl;
 
+    @PostMapping("/api/tests/health")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> testPostHealth(@RequestBody(required = false) Map<String, Object> body) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("status", "ok");
+        result.put("service", "test-service");
+        result.put("timestamp", LocalDateTime.now());
+        result.put("receivedBody", body != null ? body : Map.of());
+        result.put("method", "POST");
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
     @PostMapping
     public ResponseEntity<ApiResponse<TestResponse>> createTest(
             @RequestBody CreateTestRequest request,
