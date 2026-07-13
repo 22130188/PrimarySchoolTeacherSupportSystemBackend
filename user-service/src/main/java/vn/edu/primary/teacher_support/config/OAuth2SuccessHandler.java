@@ -10,7 +10,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import vn.edu.primary.teacher_support.dto.ActionLogCreateRequest;
 import vn.edu.primary.teacher_support.entity.User;
+import vn.edu.primary.teacher_support.service.AccessLogService;
+import vn.edu.primary.teacher_support.service.ActionLogService;
 import vn.edu.primary.teacher_support.service.GoogleAuthService;
 import vn.edu.primary.teacher_support.service.JwtService;
 
@@ -21,15 +24,21 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final GoogleAuthService googleAuthService;
     private final JwtService        jwtService;
+    private final AccessLogService  accessLogService;
+    private final ActionLogService  actionLogService;
 
     private static final Logger log = LoggerFactory.getLogger(OAuth2SuccessHandler.class);
 
     private static final String FRONTEND_URL = "http://localhost:5173";
 
     public OAuth2SuccessHandler(GoogleAuthService googleAuthService,
-                                JwtService jwtService) {
+                                JwtService jwtService,
+                                AccessLogService accessLogService,
+                                ActionLogService actionLogService) {
         this.googleAuthService = googleAuthService;
         this.jwtService        = jwtService;
+        this.accessLogService  = accessLogService;
+        this.actionLogService  = actionLogService;
     }
 
     @Override
@@ -62,6 +71,19 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         }
 
         String token = jwtService.generateToken(user);
+        accessLogService.recordLogin(user.getUsername(), user, true, request);
+        ActionLogCreateRequest actionLog = new ActionLogCreateRequest();
+        actionLog.setUsername(user.getUsername());
+        actionLog.setAction("LOGIN");
+        actionLog.setModule("auth");
+        actionLog.setHttpMethod("GET");
+        actionLog.setEndpoint(request.getRequestURI());
+        actionLog.setSeverity("INFO");
+        actionLog.setStatus("SUCCESS");
+        actionLog.setDescription("{\"provider\":\"google\"}");
+        actionLog.setIpAddress(request.getRemoteAddr());
+        actionLog.setClientIdentifier("google_oauth");
+        actionLogService.createAsync(actionLog);
 
         var cookie = new jakarta.servlet.http.Cookie(HttpCookieOAuth2AuthorizationRequestRepository.OAUTH2_AUTH_REQUEST_COOKIE_NAME, null);
         cookie.setPath("/");

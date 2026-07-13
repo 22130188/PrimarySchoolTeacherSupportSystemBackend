@@ -11,9 +11,10 @@ import java.time.LocalDate;
 
 @Data
 public class UpdatePersonalRequest {
-    @NotBlank(message = "Username không được để trống")
-    @Size(min = 3, max = 100, message = "Username phải từ 3-100 ký tự")
-    private String username;
+    /** Họ và tên hiển thị — không phải tên đăng nhập. */
+    @NotBlank(message = "Họ và tên không được để trống")
+    @Size(min = 2, max = 100, message = "Họ và tên phải từ 2-100 ký tự")
+    private String fullName;
 
     @NotNull(message = "Ngày sinh không được để trống")
     @JsonDeserialize(using = MultiFormatLocalDateDeserializer.class)

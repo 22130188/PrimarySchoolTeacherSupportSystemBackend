@@ -61,9 +61,16 @@ public class TTSServiceImpl implements TTSService {
             pythonEndpoint += "/tts/convert";
         }
 
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        // Python middleware bỏ log khi có header này (đã log ở Gateway)
+        headers.set("X-Action-Logged-By-Gateway", "true");
+        headers.set("X-Internal-Service", "true");
+        HttpEntity<TTSConvertRequest> entity = new HttpEntity<>(request, headers);
+
         Map<String, Object> responseFromPython = restTemplate.postForObject(
             pythonEndpoint,
-            request,
+            entity,
             Map.class
         );
 

@@ -171,7 +171,16 @@ public class UserManagementService {
     public UserResponse toggleUserStatus(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + id));
-        user.setIsActive(!user.getIsActive());
+        // Cột role NOT NULL — khôi phục từ user_roles nếu bị null
+        if (user.getRole() == null) {
+            Role.RoleName primaryRole = user.getRoles().stream()
+                    .map(Role::getName)
+                    .max(Comparator.comparingInt(this::rolePriority))
+                    .orElse(Role.RoleName.STUDENT);
+            user.setRole(primaryRole);
+        }
+        Boolean current = user.getIsActive();
+        user.setIsActive(current == null || !current);
         User saved = userRepository.save(user);
         return UserResponse.from(saved);
     }

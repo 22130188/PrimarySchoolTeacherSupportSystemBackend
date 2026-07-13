@@ -35,6 +35,7 @@ public class LessonShareService {
     private final LessonCommentRepository lessonCommentRepository;
     private final NotificationClient notificationClient;
     private final ClassroomServiceClient classroomServiceClient;
+    private final ActionLogClient actionLogClient;
 
     @Transactional
     public ShareResponse shareDraft(Long draftId, Long ownerUserId, String email, SharePermission permission) {
@@ -242,6 +243,23 @@ public class LessonShareService {
                 draft.getTitle(), "/classrooms/" + classroomId,
                 "LESSON", draftId);
         log.info("Shared draft {} to classroom {} by user {}", draftId, classroomId, ownerUserId);
+
+        String safeClass = classroomName == null ? "" : classroomName.replace("\\", "\\\\").replace("\"", "\\\"");
+        String safeTitle = draft.getTitle() == null ? "" : draft.getTitle().replace("\\", "\\\\").replace("\"", "\\\"");
+        String username = owner != null ? owner.getUsername() : null;
+        actionLogClient.log(
+                username,
+                "SHARE_LESSONS_CLASS",
+                "lessons",
+                String.valueOf(draftId),
+                "POST",
+                "/api/lessons/drafts/" + draftId + "/classroom-shares",
+                "WARNING",
+                "SUCCESS",
+                "{\"classroomId\":" + classroomId
+                        + ",\"classroomName\":\"" + safeClass
+                        + "\",\"lessonTitle\":\"" + safeTitle + "\"}"
+        );
 
         return ClassroomShareResponse.builder()
                 .id(share.getId())

@@ -41,6 +41,7 @@ public class ClassroomPostService {
     private final GoogleDriveService googleDriveService;
     private final PostCommentRepository postCommentRepository;
     private final NotificationClient notificationClient;
+    private final ActionLogClient actionLogClient;
 
     @Transactional(readOnly = true)
     public List<ClassroomPostResponse> getPosts(Long classroomId, Long requesterId, int limit) {
@@ -117,6 +118,7 @@ public class ClassroomPostService {
         ClassroomPost saved = classroomPostRepository.save(post);
 
         notifyAboutNewPost(classroom, saved, authorId);
+        logPostAction("CREATE", saved, authorId, classroomId);
 
         Map<Long, UserDto> authors = userServiceClient.findById(authorId)
                 .map(user -> Map.of(user.getId(), user))
@@ -178,6 +180,7 @@ public class ClassroomPostService {
         }
 
         ClassroomPost saved = classroomPostRepository.save(post);
+        logPostAction("UPDATE", saved, requesterId, classroomId);
 
         Map<Long, UserDto> authors = userServiceClient.findById(requesterId)
                 .map(user -> Map.of(user.getId(), user))
@@ -200,7 +203,47 @@ public class ClassroomPostService {
             throw new ForbiddenException("Bạn không có quyền xóa bài đăng này");
         }
 
+        logPostAction("DELETE", post, requesterId, classroomId);
         classroomPostRepository.delete(post);
+    }
+
+    private void logPostAction(String verb, ClassroomPost post, Long actorId, Long classroomId) {
+        Classroom classroom = post.getClassroom();
+        String classroomName = classroom != null && classroom.getName() != null ? classroom.getName() : ("#" + classroomId);
+        PostType type = post.getPostType() == null ? PostType.ANNOUNCEMENT : post.getPostType();
+        String action;
+        String module;
+        switch (type) {
+            case ASSIGNMENT -> {
+                action = verb + "_CLASSROOM_ASSIGNMENT";
+                module = "assignments";
+            }
+            case TEST -> {
+                action = verb + "_CLASSROOM_TEST";
+                module = "tests";
+            }
+            default -> {
+                action = verb + "_CLASSROOM_ANNOUNCEMENT";
+                module = "posts";
+            }
+        }
+        String username = userServiceClient.findById(actorId).map(UserDto::getUsername).orElse(null);
+        String endpoint = "/api/classrooms/" + classroomId + "/posts"
+                + (post.getId() != null && !"CREATE".equals(verb) ? "/" + post.getId() : "");
+        String httpMethod = "CREATE".equals(verb) ? "POST" : "UPDATE".equals(verb) ? "PATCH" : "DELETE";
+        String safeName = classroomName.replace("\\", "\\\\").replace("\"", "\\\"");
+        actionLogClient.log(
+                username,
+                action,
+                module,
+                post.getId() == null ? null : String.valueOf(post.getId()),
+                httpMethod,
+                endpoint,
+                "WARNING",
+                "SUCCESS",
+                "{\"postType\":\"" + type.name() + "\",\"classroomId\":" + classroomId
+                        + ",\"classroomName\":\"" + safeName + "\"}"
+        );
     }
 
     @Transactional(readOnly = true)

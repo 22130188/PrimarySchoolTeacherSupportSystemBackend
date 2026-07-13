@@ -33,6 +33,7 @@ public class InvitationService {
     private final UserServiceClient userServiceClient;
     private final EmailService emailService;
     private final NotificationClient notificationClient;
+    private final ActionLogClient actionLogClient;
 
     @Value("${classroom.invite.expiry-days}")
     private int expiryDays;
@@ -73,6 +74,7 @@ public class InvitationService {
                     teacherName + " đã gửi cho bạn một lời mời tham gia lớp học.",
                     "/classrooms", "CLASSROOM", classroomId);
 
+            logInviteAction("INVITE_CLASSROOM_MEMBER", classroom, invitedBy, teacherName, email, invitation.getId(), "POST");
             return toResponse(invitation, classroom.getName());
         } else {
 
@@ -89,6 +91,7 @@ public class InvitationService {
             String teacherName = teacher != null ? teacher.getUsername() : "Giáo viên";
             emailService.sendRegistrationInviteEmail(email, classroom.getName(), teacherName, invitation.getToken());
 
+            logInviteAction("INVITE_CLASSROOM_MEMBER", classroom, invitedBy, teacherName, email, invitation.getId(), "POST");
             return toResponse(invitation, classroom.getName());
         }
     }
@@ -178,6 +181,8 @@ public class InvitationService {
             emailService.sendRegistrationInviteEmail(invitation.getEmail(), classroom.getName(), teacherName,
                     invitation.getToken());
         }
+        logInviteAction("RESEND_CLASSROOM_INVITATION", classroom, teacherId, teacherName,
+                invitation.getEmail(), invitationId, "POST");
     }
 
 
@@ -192,12 +197,38 @@ public class InvitationService {
 
         invitation.setStatus(InvitationStatus.CANCELLED);
         invitationRepository.save(invitation);
+        Classroom classroom = invitation.getClassroom();
+        UserDto teacher = userServiceClient.findById(teacherId).orElse(null);
+        String teacherName = teacher != null ? teacher.getUsername() : "Giáo viên";
         if (invitation.getStudentId() != null) {
             notificationClient.notifyUser(invitation.getStudentId(), teacherId, "Giáo viên",
                     "INVITATION_REVOKED", "Lời mời tham gia lớp đã được thu hồi",
-                    "Lớp " + invitation.getClassroom().getName(),
+                    "Lớp " + (classroom != null ? classroom.getName() : ""),
                     "/classrooms", "CLASSROOM", classroomId);
         }
+        if (classroom != null) {
+            logInviteAction("REVOKE_CLASSROOM_INVITATION", classroom, teacherId, teacherName,
+                    invitation.getEmail(), invitationId, "DELETE");
+        }
+    }
+
+    private void logInviteAction(String action, Classroom classroom, Long actorId, String actorName,
+                                 String email, Long invitationId, String httpMethod) {
+        String safeName = classroom.getName() == null ? "" : classroom.getName().replace("\\", "\\\\").replace("\"", "\\\"");
+        String safeEmail = email == null ? "" : email.replace("\\", "\\\\").replace("\"", "\\\"");
+        actionLogClient.log(
+                actorName,
+                action,
+                "classrooms",
+                invitationId == null ? String.valueOf(classroom.getId()) : String.valueOf(invitationId),
+                httpMethod,
+                "/api/classrooms/" + classroom.getId() + "/invite",
+                "WARNING",
+                "SUCCESS",
+                "{\"classroomId\":" + classroom.getId()
+                        + ",\"classroomName\":\"" + safeName
+                        + "\",\"email\":\"" + safeEmail + "\"}"
+        );
     }
 
 
