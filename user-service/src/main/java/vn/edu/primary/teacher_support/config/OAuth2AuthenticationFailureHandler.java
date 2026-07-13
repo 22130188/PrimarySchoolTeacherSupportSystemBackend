@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
@@ -21,8 +22,10 @@ import java.nio.charset.StandardCharsets;
 public class OAuth2AuthenticationFailureHandler implements AuthenticationFailureHandler {
 
     private static final Logger log = LoggerFactory.getLogger(OAuth2AuthenticationFailureHandler.class);
-    private static final String FRONTEND_URL = "http://localhost:5173";
     private final ActionLogService actionLogService;
+
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
 
     @Override
     public void onAuthenticationFailure(HttpServletRequest request,
@@ -47,6 +50,7 @@ public class OAuth2AuthenticationFailureHandler implements AuthenticationFailure
         cookie.setMaxAge(0);
         response.addCookie(cookie);
 
-        response.sendRedirect(FRONTEND_URL + "/oauth2/callback?error=" + error);
+        String base = frontendUrl == null ? "http://localhost:5173" : frontendUrl.replaceAll("/$", "");
+        response.sendRedirect(base + "/oauth2/callback?error=" + error);
     }
 }

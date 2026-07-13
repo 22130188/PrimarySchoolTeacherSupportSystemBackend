@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.Collections;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
@@ -29,7 +30,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private static final Logger log = LoggerFactory.getLogger(OAuth2SuccessHandler.class);
 
-    private static final String FRONTEND_URL = "http://localhost:5173";
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
 
     public OAuth2SuccessHandler(GoogleAuthService googleAuthService,
                                 JwtService jwtService,
@@ -91,6 +93,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         cookie.setMaxAge(0);
         response.addCookie(cookie);
 
-        response.sendRedirect(FRONTEND_URL + "/oauth2/callback?token=" + token);
+        String base = frontendUrl == null ? "http://localhost:5173" : frontendUrl.replaceAll("/$", "");
+        response.sendRedirect(base + "/oauth2/callback?token=" + token);
     }
 }
