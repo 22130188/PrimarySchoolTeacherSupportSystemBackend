@@ -84,6 +84,7 @@ public class ActionLoggingGlobalFilter implements GlobalFilter, Ordered {
             // Các thao tác này được service ghi log chi tiết (kèm tên lớp).
             if (isClassroomPostMutation(normalized)) return false;
             if (isClassroomInviteMutation(normalized)) return false;
+            if (isClassroomStatusMutation(normalized)) return false;
             if (isLessonClassroomShareMutation(normalized)) return false;
             if (isCanvasIntermediateUpload(normalized)) return false;
             // Tạo/sửa/xóa bài kiểm tra & bài tập: test-service ghi theo testType
@@ -106,6 +107,11 @@ public class ActionLoggingGlobalFilter implements GlobalFilter, Ordered {
             if (part.equalsIgnoreCase(segment)) return true;
         }
         return false;
+    }
+
+    /** classroom-service ghi log chi tiết kèm lý do, trạng thái trước/sau và IP. */
+    private static boolean isClassroomStatusMutation(String path) {
+        return path.matches("^/api/(admin/)?classrooms/\\d+/(archive|restore|permanent|lock|unlock)/?$");
     }
 
     /** /api/classrooms/{id}/posts[...] nhưng không phải /comments (comments vẫn log qua gateway). */

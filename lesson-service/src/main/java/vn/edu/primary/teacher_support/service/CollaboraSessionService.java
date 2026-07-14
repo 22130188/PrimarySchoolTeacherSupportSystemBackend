@@ -250,7 +250,8 @@ public class CollaboraSessionService {
             throw new BusinessException("Bai giang nay khong phai dinh dang Collabora");
         }
 
-        boolean canWrite = share.getOwnerUserId().equals(userId);
+        boolean canWrite = share.getOwnerUserId().equals(userId)
+                && classroomServiceClient.isWritable(classroomId);
         return buildEditorSession(userId, draftId, draft, canWrite, canWrite);
     }
 

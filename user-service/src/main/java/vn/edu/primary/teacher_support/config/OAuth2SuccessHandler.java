@@ -70,6 +70,15 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             throw ex;
         }
 
+        if (user == null || Boolean.FALSE.equals(user.getIsActive())) {
+            String email = user != null ? user.getEmail() : String.valueOf(oAuth2User.getAttribute("email"));
+            log.warn("Blocked OAuth2 login for inactive account: {}", email);
+            accessLogService.recordLogin(user != null ? user.getUsername() : email, user, false, request);
+            response.sendRedirect(FRONTEND_URL + "/login?error=" +
+                    java.net.URLEncoder.encode("Tài khoản đã bị khóa", java.nio.charset.StandardCharsets.UTF_8));
+            return;
+        }
+
         String token = jwtService.generateToken(user);
         accessLogService.recordLogin(user.getUsername(), user, true, request);
         ActionLogCreateRequest actionLog = new ActionLogCreateRequest();

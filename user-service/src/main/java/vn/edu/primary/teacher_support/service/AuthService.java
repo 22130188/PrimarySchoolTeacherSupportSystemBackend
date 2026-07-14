@@ -47,8 +47,12 @@ public class AuthService {
         User user = new User();
         user.setUsername(req.getUsername());
         user.setEmail(req.getEmail());
-        user.setPassword(passwordEncoder.encode(req.getPassword()));
+        String encodedPassword = passwordEncoder.encode(req.getPassword());
+        user.setPassword(encodedPassword);
+        user.setPasswordHash(encodedPassword);
+        user.setFullName(req.getUsername());
         user.setSchoolName(req.getSchoolName());
+        user.setIsActive(true);
         user.setIsEmailVerified(true);
 
         // Gán role

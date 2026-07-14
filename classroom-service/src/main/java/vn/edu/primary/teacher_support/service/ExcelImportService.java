@@ -27,7 +27,7 @@ public class ExcelImportService {
 
     @Transactional
     public ExcelImportResult importExcel(Long classroomId, MultipartFile file, Long teacherId) {
-        Classroom classroom = classroomService.getActiveClassroom(classroomId);
+        Classroom classroom = classroomService.requireWritableClassroom(classroomId);
 
         if (file.isEmpty()) {
             throw new BusinessException("File không được để trống");

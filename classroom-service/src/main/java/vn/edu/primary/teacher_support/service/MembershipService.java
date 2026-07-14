@@ -75,6 +75,7 @@ public class MembershipService {
         }
 
         Classroom classroom = invitation.getClassroom();
+        classroomService.ensureWritable(classroom);
         validateNotAlreadyMember(classroom.getId(), studentId);
 
         invitationService.acceptInvitation(invitation.getId(), studentId, email);
@@ -97,6 +98,7 @@ public class MembershipService {
         }
 
         Classroom classroom = invitation.getClassroom();
+        classroomService.ensureWritable(classroom);
         validateNotAlreadyMember(classroom.getId(), studentId);
 
         invitationService.acceptInvitation(invitationId, studentId, email);
@@ -130,6 +132,7 @@ public class MembershipService {
 
     @Transactional
     public void leaveClassroom(Long classroomId, Long studentId) {
+        classroomService.requireWritableClassroom(classroomId);
         ClassroomMember member = memberRepository
                 .findByClassroomIdAndStudentIdAndStatus(classroomId, studentId, MemberStatus.ACTIVE)
                 .orElseThrow(() -> new ResourceNotFoundException("Bạn không phải thành viên của lớp này"));

@@ -25,6 +25,8 @@ public class AdminClassroomResponse {
     private Long createdBy;
     private Boolean isDeleted;
     private LocalDateTime createdAt;
+    private String status;
+    private String statusBeforeLock;
     private LocalDateTime updatedAt;
     private LocalDateTime deletedAt;
 }

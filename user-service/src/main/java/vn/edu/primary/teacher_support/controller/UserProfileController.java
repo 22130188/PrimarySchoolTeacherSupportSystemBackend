@@ -38,6 +38,10 @@ public class UserProfileController {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
 
+        if (Boolean.FALSE.equals(user.getIsActive())) {
+            throw new RuntimeException("Tài khoản đã bị khóa");
+        }
+
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
@@ -98,8 +102,12 @@ public class UserProfileController {
         }
 
         String username = jwtService.extractUsername(token);
-        return userRepository.findByUsername(username)
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
+        if (Boolean.FALSE.equals(user.getIsActive())) {
+            throw new RuntimeException("Tài khoản đã bị khóa");
+        }
+        return user;
     }
 
     private String resolveBearerToken(String authorization) {

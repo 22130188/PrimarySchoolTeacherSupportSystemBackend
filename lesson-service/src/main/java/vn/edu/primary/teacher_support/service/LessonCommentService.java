@@ -57,6 +57,7 @@ public class LessonCommentService {
             Long authorId,
             CreateLessonCommentRequest request
     ) {
+        ensureClassroomWritable(classroomId);
         LessonClassroomShare share = getAccessibleShare(classroomId, draftId, authorId);
         LessonComment saved = commentRepository.save(LessonComment.builder()
                 .classroomShare(share)
@@ -78,6 +79,7 @@ public class LessonCommentService {
 
     @Transactional
     public void deleteComment(Long classroomId, Long draftId, Long commentId, Long requesterId) {
+        ensureClassroomWritable(classroomId);
         LessonClassroomShare share = getAccessibleShare(classroomId, draftId, requesterId);
         LessonComment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhận xét"));
@@ -94,6 +96,12 @@ public class LessonCommentService {
         }
 
         commentRepository.delete(comment);
+    }
+
+    private void ensureClassroomWritable(Long classroomId) {
+        if (!classroomServiceClient.isWritable(classroomId)) {
+            throw new BusinessException("Lớp học đã lưu trữ hoặc bị khóa và chỉ có thể xem nội dung");
+        }
     }
 
     private LessonClassroomShare getAccessibleShare(Long classroomId, Long draftId, Long userId) {
