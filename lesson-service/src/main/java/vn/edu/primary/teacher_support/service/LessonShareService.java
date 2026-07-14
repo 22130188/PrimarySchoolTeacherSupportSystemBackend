@@ -212,6 +212,9 @@ public class LessonShareService {
 
     @Transactional
     public ClassroomShareResponse shareToClassroom(Long draftId, Long ownerUserId, Long classroomId) {
+        if (!classroomServiceClient.isWritable(classroomId)) {
+            throw new BusinessException("Lớp học đã lưu trữ hoặc bị khóa và chỉ có thể xem nội dung");
+        }
         LessonDraft draft = draftRepository.findByIdAndUserId(draftId, ownerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài giảng hoặc bạn không phải chủ sở hữu"));
 
@@ -290,6 +293,9 @@ public class LessonShareService {
 
     @Transactional
     public void revokeClassroomShare(Long draftId, Long classroomId, Long ownerUserId) {
+        if (!classroomServiceClient.isWritable(classroomId)) {
+            throw new BusinessException("Lớp học đã lưu trữ hoặc bị khóa và chỉ có thể xem nội dung");
+        }
         draftRepository.findByIdAndUserId(draftId, ownerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài giảng hoặc bạn không phải chủ sở hữu"));
 

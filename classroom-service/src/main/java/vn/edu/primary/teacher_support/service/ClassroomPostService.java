@@ -69,7 +69,7 @@ public class ClassroomPostService {
 
     @Transactional
     public ClassroomPostResponse createPost(Long classroomId, Long authorId, CreateClassroomPostRequest request) {
-        Classroom classroom = classroomService.getActiveClassroom(classroomId);
+        Classroom classroom = classroomService.requireWritableClassroom(classroomId);
         validateCanView(classroom, authorId);
 
         String content = request.getContent() == null ? "" : request.getContent().trim();
@@ -129,7 +129,7 @@ public class ClassroomPostService {
 
     @Transactional
     public ClassroomPostResponse updatePost(Long classroomId, Long postId, Long requesterId, CreateClassroomPostRequest request) {
-        Classroom classroom = classroomService.getActiveClassroom(classroomId);
+        Classroom classroom = classroomService.requireWritableClassroom(classroomId);
         validateCanView(classroom, requesterId);
 
         ClassroomPost post = classroomPostRepository.findByIdAndClassroomId(postId, classroomId)
@@ -191,7 +191,7 @@ public class ClassroomPostService {
 
     @Transactional
     public void deletePost(Long classroomId, Long postId, Long requesterId) {
-        Classroom classroom = classroomService.getActiveClassroom(classroomId);
+        Classroom classroom = classroomService.requireWritableClassroom(classroomId);
         validateCanView(classroom, requesterId);
 
         ClassroomPost post = classroomPostRepository.findByIdAndClassroomId(postId, classroomId)
@@ -283,7 +283,7 @@ public class ClassroomPostService {
 
     @Transactional
     public PostCommentResponse createPostComment(Long classroomId, Long postId, Long authorId, CreateCommentRequest request) {
-        Classroom classroom = classroomService.getActiveClassroom(classroomId);
+        Classroom classroom = classroomService.requireWritableClassroom(classroomId);
         validateCanView(classroom, authorId);
 
         ClassroomPost post = classroomPostRepository.findByIdAndClassroomId(postId, classroomId)
@@ -322,7 +322,7 @@ public class ClassroomPostService {
 
     @Transactional
     public void deletePostComment(Long classroomId, Long postId, Long commentId, Long requesterId) {
-        Classroom classroom = classroomService.getActiveClassroom(classroomId);
+        Classroom classroom = classroomService.requireWritableClassroom(classroomId);
         validateCanView(classroom, requesterId);
 
         ClassroomPost post = classroomPostRepository.findByIdAndClassroomId(postId, classroomId)

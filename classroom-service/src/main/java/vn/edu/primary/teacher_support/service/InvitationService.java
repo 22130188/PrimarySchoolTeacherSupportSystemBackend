@@ -41,7 +41,7 @@ public class InvitationService {
     @Transactional
     public InvitationResponse inviteByEmail(Long classroomId, String email, Long invitedBy) {
         email = email.trim().toLowerCase();
-        Classroom classroom = classroomService.getActiveClassroom(classroomId);
+        Classroom classroom = classroomService.requireWritableClassroom(classroomId);
 
         Optional<UserDto> existingUser = userServiceClient.findByEmail(email);
 
@@ -98,6 +98,7 @@ public class InvitationService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String inviteByEmailForBatch(Long classroomId, Classroom classroom, String email, Long invitedBy) {
+        classroomService.ensureWritable(classroom);
         email = email.trim().toLowerCase();
 
         Optional<UserDto> existingUser = userServiceClient.findByEmail(email);
@@ -153,7 +154,7 @@ public class InvitationService {
 
     @Transactional
     public void resendInvitation(Long classroomId, Long invitationId, Long teacherId) {
-        Classroom classroom = classroomService.getActiveClassroom(classroomId);
+        Classroom classroom = classroomService.requireWritableClassroom(classroomId);
 
         ClassroomInvitation invitation = invitationRepository.findByIdAndClassroomId(invitationId, classroomId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời"));
@@ -190,6 +191,7 @@ public class InvitationService {
     public void revokeInvitation(Long classroomId, Long invitationId, Long teacherId) {
         ClassroomInvitation invitation = invitationRepository.findByIdAndClassroomId(invitationId, classroomId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời"));
+        classroomService.ensureWritable(invitation.getClassroom());
 
         if (invitation.getStatus() == InvitationStatus.ACCEPTED) {
             throw new BusinessException("Không thể thu hồi lời mời đã được chấp nhận");
@@ -276,6 +278,7 @@ public class InvitationService {
         }
 
         Classroom classroom = invitation.getClassroom();
+        classroomService.ensureWritable(classroom);
         if (classroom.getIsDeleted()) {
             throw new BusinessException("Lớp học đã bị xóa");
         }
@@ -291,6 +294,7 @@ public class InvitationService {
     public void rejectInvitation(Long invitationId, Long studentId, String studentEmail) {
         ClassroomInvitation invitation = invitationRepository.findById(invitationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời"));
+        classroomService.ensureWritable(invitation.getClassroom());
 
         if (!invitation.getEmail().equalsIgnoreCase(studentEmail)) {
             throw new BusinessException("Lời mời không dành cho tài khoản này");
@@ -329,6 +333,7 @@ public class InvitationService {
 
         int count = 0;
         for (ClassroomInvitation invitation : waitingInvitations) {
+            if (!classroomService.isWritable(invitation.getClassroom())) continue;
             invitation.setStudentId(userId);
             invitation.setStatus(InvitationStatus.INVITED);
             invitationRepository.save(invitation);

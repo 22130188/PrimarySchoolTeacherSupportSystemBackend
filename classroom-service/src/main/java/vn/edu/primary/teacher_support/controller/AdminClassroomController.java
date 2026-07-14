@@ -1,5 +1,6 @@
 package vn.edu.primary.teacher_support.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,10 +22,9 @@ public class AdminClassroomController {
 
     @GetMapping
     public ResponseEntity<List<AdminClassroomResponse>> getAllClassrooms(
-            @RequestHeader("Authorization") String authorization,
-            @RequestParam(value = "includeDeleted", defaultValue = "false") boolean includeDeleted) {
+            @RequestHeader("Authorization") String authorization) {
         authHelper.validateAdmin(authorization);
-        return ResponseEntity.ok(adminClassroomService.getAllClassrooms(includeDeleted));
+        return ResponseEntity.ok(adminClassroomService.getAllClassrooms());
     }
 
     @GetMapping("/stats")
@@ -51,32 +51,29 @@ public class AdminClassroomController {
         return ResponseEntity.ok(adminClassroomService.updateClassroom(id, request));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> softDeleteClassroom(
+    @PostMapping("/{id}/lock")
+    public ResponseEntity<AdminClassroomResponse> lockClassroom(
             @RequestHeader("Authorization") String authorization,
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @Valid @RequestBody ClassroomStatusActionRequest request,
+            HttpServletRequest httpRequest) {
         authHelper.validateAdmin(authorization);
-        adminClassroomService.softDeleteClassroom(id);
-        return ResponseEntity.noContent().build();
+        Long adminId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(adminClassroomService.lockClassroom(
+                id, request.getReason().trim(), adminId, authorization, clientIp(httpRequest)));
     }
 
-    @PostMapping("/{id}/restore")
-    public ResponseEntity<AdminClassroomResponse> restoreClassroom(
+    @PostMapping("/{id}/unlock")
+    public ResponseEntity<AdminClassroomResponse> unlockClassroom(
             @RequestHeader("Authorization") String authorization,
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @Valid @RequestBody ClassroomStatusActionRequest request,
+            HttpServletRequest httpRequest) {
         authHelper.validateAdmin(authorization);
-        return ResponseEntity.ok(adminClassroomService.restoreClassroom(id));
+        Long adminId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(adminClassroomService.unlockClassroom(
+                id, request.getReason().trim(), adminId, authorization, clientIp(httpRequest)));
     }
-
-    @DeleteMapping("/{id}/permanent")
-    public ResponseEntity<Map<String, String>> hardDeleteClassroom(
-            @RequestHeader("Authorization") String authorization,
-            @PathVariable Long id) {
-        authHelper.validateAdmin(authorization);
-        adminClassroomService.hardDeleteClassroom(id);
-        return ResponseEntity.ok(Map.of("message", "Đã xóa vĩnh viễn lớp học"));
-    }
-
     @GetMapping("/{id}/members")
     public ResponseEntity<ClassroomRosterResponse> getClassroomMembers(
             @RequestHeader("Authorization") String authorization,
@@ -85,13 +82,10 @@ public class AdminClassroomController {
         return ResponseEntity.ok(adminClassroomService.getClassroomMembers(id));
     }
 
-    @DeleteMapping("/{id}/members/{memberId}")
-    public ResponseEntity<Void> removeMember(
-            @RequestHeader("Authorization") String authorization,
-            @PathVariable Long id,
-            @PathVariable Long memberId) {
-        authHelper.validateAdmin(authorization);
-        adminClassroomService.removeMember(id, memberId);
-        return ResponseEntity.noContent().build();
-    }
-}
+    private String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }}

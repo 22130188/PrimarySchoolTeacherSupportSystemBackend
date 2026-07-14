@@ -68,7 +68,9 @@ public class InternalClassroomController {
                     "name", classroom.getName(),
                     "teacherId", classroom.getTeacherId(),
                     "gradeLevel", classroom.getGradeLevel() != null ? classroom.getGradeLevel() : 0,
-                    "subject", classroom.getSubject() != null ? classroom.getSubject() : ""));
+                    "subject", classroom.getSubject() != null ? classroom.getSubject() : "",
+                    "status", classroom.getStatus() == null ? "ACTIVE" : classroom.getStatus().name(),
+                    "writable", classroomService.isWritable(classroom)));
         } catch (Exception e) {
             return ResponseEntity.notFound().build();
         }

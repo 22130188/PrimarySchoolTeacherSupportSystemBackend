@@ -9,6 +9,7 @@ import vn.edu.primary.teacher_support.dto.*;
 import vn.edu.primary.teacher_support.entity.Classroom;
 import vn.edu.primary.teacher_support.entity.ClassroomInvitation;
 import vn.edu.primary.teacher_support.entity.ClassroomMember;
+import vn.edu.primary.teacher_support.entity.enums.ClassroomStatus;
 import vn.edu.primary.teacher_support.entity.enums.InvitationStatus;
 import vn.edu.primary.teacher_support.entity.enums.MemberStatus;
 import vn.edu.primary.teacher_support.exception.BusinessException;
@@ -33,6 +34,8 @@ public class ClassroomService {
     private final ClassroomInvitationRepository invitationRepository;
     private final UserServiceClient userServiceClient;
     private final NotificationClient notificationClient;
+    private final EmailService emailService;
+    private final ActionLogClient actionLogClient;
 
     @Value("${classroom.frontend.base-url}")
     private String frontendBaseUrl;
@@ -71,7 +74,7 @@ public class ClassroomService {
 
     @Transactional
     public ClassroomResponse updateClassroom(Long classroomId, UpdateClassroomRequest request, Long teacherId) {
-        Classroom classroom = getActiveClassroom(classroomId);
+        Classroom classroom = requireWritableClassroom(classroomId);
         validateTeacherOwnership(classroom, teacherId);
 
         classroom.setName(request.getName().trim());
@@ -84,25 +87,110 @@ public class ClassroomService {
     }
 
     @Transactional
-    public void deleteClassroom(Long classroomId, Long teacherId) {
+    public ClassroomResponse archiveClassroom(Long classroomId, Long teacherId,
+            String authorization, String ipAddress) {
         Classroom classroom = getActiveClassroom(classroomId);
         validateTeacherOwnership(classroom, teacherId);
 
-        classroom.setIsDeleted(true);
-        classroom.setDeletedAt(LocalDateTime.now());
-        classroomRepository.save(classroom);
+        ClassroomStatus beforeStatus = effectiveStatus(classroom);
+        if (beforeStatus != ClassroomStatus.ACTIVE) {
+            throw new BusinessException("Chỉ có thể lưu trữ lớp đang hoạt động");
+        }
 
-        List<Long> studentIds = memberRepository
-                .findByClassroomIdAndStatusOrderByJoinedAtDesc(classroomId, MemberStatus.ACTIVE)
-                .stream().map(ClassroomMember::getStudentId).toList();
-        notificationClient.notifyUsers(studentIds, teacherId, "Giáo viên", "CLASS_DELETED",
-                "Lớp " + classroom.getName() + " đã được đóng",
-                "Lớp học không còn hoạt động.", "/classrooms", "CLASSROOM", classroomId);
+        classroom.setStatus(ClassroomStatus.ARCHIVED);
+        classroom.setStatusBeforeLock(null);
+        classroom = classroomRepository.save(classroom);
+
+        List<ClassroomMember> members = memberRepository
+                .findByClassroomIdAndStatusOrderByJoinedAtDesc(classroomId, MemberStatus.ACTIVE);
+        List<Long> studentIds = members.stream().map(ClassroomMember::getStudentId).toList();
+        notificationClient.notifyUsers(studentIds, teacherId, "Giáo viên", "CLASS_ARCHIVED",
+                "Lớp " + classroom.getName() + " đã được lưu trữ",
+                "Toàn bộ nội dung và kết quả học tập vẫn được giữ nguyên.",
+                "/classrooms", "CLASSROOM", classroomId);
+        notifyClassroomStatusByEmail(classroom, members, false, "Lớp học đã được lưu trữ",
+                "Giáo viên đã lưu trữ lớp học.", null);
+
+        String description = """
+                {"classroomId":%d,"classroomName":"%s","statusBefore":"%s","statusAfter":"ARCHIVED"}
+                """.formatted(classroomId, json(classroom.getName()), beforeStatus).trim();
+        actionLogClient.logAuthenticated(authorization, "ARCHIVE_CLASSROOM", String.valueOf(classroomId),
+                "PATCH", "/api/classrooms/" + classroomId + "/archive", "WARNING", description, ipAddress);
+        return toResponse(classroom);
     }
 
     @Transactional
-    public ClassroomResponse resetClassCode(Long classroomId, Long teacherId) {
+    public ClassroomResponse restoreClassroom(Long classroomId, Long teacherId,
+            String authorization, String ipAddress) {
         Classroom classroom = getActiveClassroom(classroomId);
+        validateTeacherOwnership(classroom, teacherId);
+
+        ClassroomStatus beforeStatus = effectiveStatus(classroom);
+        if (beforeStatus != ClassroomStatus.ARCHIVED) {
+            throw new BusinessException("Chỉ có thể khôi phục lớp đã lưu trữ");
+        }
+
+        classroom.setStatus(ClassroomStatus.ACTIVE);
+        classroom.setStatusBeforeLock(null);
+        classroom = classroomRepository.save(classroom);
+
+        List<ClassroomMember> members = memberRepository
+                .findByClassroomIdAndStatusOrderByJoinedAtDesc(classroomId, MemberStatus.ACTIVE);
+        List<Long> studentIds = members.stream().map(ClassroomMember::getStudentId).toList();
+        notificationClient.notifyUsers(studentIds, teacherId, "Giáo viên", "CLASS_RESTORED",
+                "Lớp " + classroom.getName() + " đã được khôi phục",
+                "Bạn có thể tiếp tục đăng và tương tác với nội dung trong lớp.",
+                "/classrooms/" + classroomId, "CLASSROOM", classroomId);
+        notifyClassroomStatusByEmail(classroom, members, false, "Lớp học đã được khôi phục",
+                "Giáo viên đã khôi phục lớp học. Bạn có thể tiếp tục học tập và tương tác trong lớp.", null);
+
+        String description = """
+                {"classroomId":%d,"classroomName":"%s","statusBefore":"ARCHIVED","statusAfter":"ACTIVE"}
+                """.formatted(classroomId, json(classroom.getName())).trim();
+        actionLogClient.logAuthenticated(authorization, "RESTORE_CLASSROOM", String.valueOf(classroomId),
+                "PATCH", "/api/classrooms/" + classroomId + "/restore", "INFO", description, ipAddress);
+        return toResponse(classroom);
+    }
+
+    @Transactional
+    public void permanentlyDeleteClassroom(Long classroomId, Long teacherId,
+            String authorization, String ipAddress) {
+        Classroom classroom = getActiveClassroom(classroomId);
+        validateTeacherOwnership(classroom, teacherId);
+
+        ClassroomStatus beforeStatus = effectiveStatus(classroom);
+        if (beforeStatus != ClassroomStatus.ARCHIVED) {
+            throw new BusinessException("Chỉ có thể xóa vĩnh viễn lớp đã lưu trữ");
+        }
+
+        List<ClassroomMember> members = memberRepository
+                .findByClassroomIdAndStatusOrderByJoinedAtDesc(classroomId, MemberStatus.ACTIVE);
+
+        classroom.setIsDeleted(true);
+        classroom.setDeletedAt(LocalDateTime.now());
+        classroom.setStatusBeforeLock(null);
+        classroomRepository.save(classroom);
+
+        List<Long> studentIds = members.stream().map(ClassroomMember::getStudentId).toList();
+        notificationClient.notifyUsers(studentIds, teacherId, "Giáo viên", "CLASS_DELETED",
+                "Lớp " + classroom.getName() + " đã bị xóa vĩnh viễn",
+                "Lớp học không còn khả dụng. Dữ liệu học tập trước đó vẫn được hệ thống bảo toàn.",
+                "/classrooms", "CLASSROOM", classroomId);
+        notifyClassroomStatusByEmail(classroom, members, false, "Lớp học đã bị xóa vĩnh viễn",
+                "Giáo viên đã xóa vĩnh viễn lớp học. Lớp không còn khả dụng.", null);
+
+        String description = """
+                {"classroomId":%d,"classroomName":"%s","statusBefore":"%s","statusAfter":"DELETED","logicalDelete":true}
+                """.formatted(classroomId, json(classroom.getName()), beforeStatus).trim();
+        actionLogClient.logAuthenticated(authorization, "DELETE_CLASSROOM_PERMANENT",
+                String.valueOf(classroomId), "DELETE", "/api/classrooms/" + classroomId + "/permanent",
+                "DANGER", description, ipAddress);
+    }
+
+
+    @Transactional
+    public ClassroomResponse resetClassCode(Long classroomId, Long teacherId) {
+        Classroom classroom = requireWritableClassroom(classroomId);
         validateTeacherOwnership(classroom, teacherId);
 
         classroom.setClassCode(generateUniqueClassCode());
@@ -112,7 +200,7 @@ public class ClassroomService {
 
     @Transactional
     public ClassroomResponse resetInviteLink(Long classroomId, Long teacherId) {
-        Classroom classroom = getActiveClassroom(classroomId);
+        Classroom classroom = requireWritableClassroom(classroomId);
         validateTeacherOwnership(classroom, teacherId);
 
         classroom.setInviteLinkToken(generateUniqueInviteLinkToken());
@@ -264,7 +352,7 @@ public class ClassroomService {
 
     @Transactional
     public void removeStudent(Long classroomId, Long memberId, Long teacherId) {
-        Classroom classroom = getActiveClassroom(classroomId);
+        Classroom classroom = requireWritableClassroom(classroomId);
         validateTeacherOwnership(classroom, teacherId);
 
         ClassroomMember member = memberRepository.findByIdAndClassroomId(memberId, classroomId)
@@ -280,13 +368,17 @@ public class ClassroomService {
 
 
     public Classroom findByInviteLinkToken(String token) {
-        return classroomRepository.findByInviteLinkTokenAndIsDeletedFalse(token)
+        Classroom classroom = classroomRepository.findByInviteLinkTokenAndIsDeletedFalse(token)
                 .orElseThrow(() -> new ResourceNotFoundException("Invite link không hợp lệ hoặc lớp đã bị xóa"));
+        ensureWritable(classroom);
+        return classroom;
     }
 
     public Classroom findByClassCode(String code) {
-        return classroomRepository.findByClassCodeAndIsDeletedFalse(code)
+        Classroom classroom = classroomRepository.findByClassCodeAndIsDeletedFalse(code)
                 .orElseThrow(() -> new ResourceNotFoundException("Class code không hợp lệ hoặc lớp đã bị xóa"));
+        ensureWritable(classroom);
+        return classroom;
     }
 
     public List<Long> getActiveStudentIds(Long classroomId) {
@@ -298,6 +390,26 @@ public class ClassroomService {
     public Classroom getActiveClassroom(Long id) {
         return classroomRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lớp học với ID: " + id));
+    }
+
+    public Classroom requireWritableClassroom(Long id) {
+        Classroom classroom = getActiveClassroom(id);
+        ensureWritable(classroom);
+        return classroom;
+    }
+
+    public boolean isWritable(Classroom classroom) {
+        return classroom != null && effectiveStatus(classroom) == ClassroomStatus.ACTIVE;
+    }
+
+    public void ensureWritable(Classroom classroom) {
+        ClassroomStatus status = effectiveStatus(classroom);
+        if (status == ClassroomStatus.ARCHIVED) {
+            throw new BusinessException("Lớp học đã được lưu trữ và chỉ có thể xem nội dung");
+        }
+        if (status == ClassroomStatus.LOCKED) {
+            throw new BusinessException("Lớp học đang bị khóa và chỉ có thể xem nội dung");
+        }
     }
 
 
@@ -328,11 +440,38 @@ public class ClassroomService {
                 .studentCount(studentCount)
                 .gradeLevel(classroom.getGradeLevel())
                 .subject(classroom.getSubject())
+                .status(effectiveStatus(classroom).name())
                 .createdAt(classroom.getCreatedAt())
                 .updatedAt(classroom.getUpdatedAt())
                 .build();
     }
 
+    private ClassroomStatus effectiveStatus(Classroom classroom) {
+        return classroom.getStatus() == null ? ClassroomStatus.ACTIVE : classroom.getStatus();
+    }
+
+    private void notifyClassroomStatusByEmail(Classroom classroom, List<ClassroomMember> members,
+            boolean includeTeacher, String title, String message, String reason) {
+        if (includeTeacher) {
+            userServiceClient.findById(classroom.getTeacherId())
+                    .ifPresent(user -> emailService.sendClassroomStatusEmail(
+                            user.getEmail(), classroom.getName(), title, message, reason));
+        }
+        members.stream()
+                .map(ClassroomMember::getStudentId)
+                .distinct()
+                .map(userServiceClient::findById)
+                .flatMap(Optional::stream)
+                .forEach(user -> emailService.sendClassroomStatusEmail(
+                        user.getEmail(), classroom.getName(), title, message, reason));
+    }
+
+    private String json(String value) {
+        if (value == null) return "";
+        String slash = Character.toString(92);
+        String quote = Character.toString(34);
+        return value.replace(slash, slash + slash).replace(quote, slash + quote);
+    }
     private String generateUniqueClassCode() {
         String code;
         do {

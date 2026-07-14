@@ -94,6 +94,30 @@ public class EmailService {
         sendHtmlEmail(toEmail, subject, html);
     }
 
+    public void sendClassroomStatusEmail(String toEmail, String classroomName, String title,
+            String message, String reason) {
+        if (toEmail == null || toEmail.isBlank()) {
+            return;
+        }
+        String reasonHtml = reason == null || reason.isBlank()
+                ? ""
+                : "<p style=\"color:#4b5563;\"><strong>Lý do:</strong> " + reason + "</p>";
+        String html = """
+                <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #e5e7eb;border-radius:16px;">
+                  <h2 style="color:#1f2937;">%s</h2>
+                  <p style="color:#4b5563;">Lớp học <strong>%s</strong></p>
+                  <p style="color:#4b5563;">%s</p>
+                  %s
+                  <p style="color:#9ca3af;font-size:12px;margin-top:24px;">Toàn bộ dữ liệu lớp học vẫn được giữ nguyên.</p>
+                </div>
+                """.formatted(title, classroomName, message, reasonHtml);
+        try {
+            sendHtmlEmail(toEmail, title + ": " + classroomName + " - TeachAI", html);
+        } catch (BusinessException exception) {
+            log.warn("Không gửi được email trạng thái lớp tới {}: {}", toEmail, exception.getMessage());
+        }
+    }
+
     private void sendHtmlEmail(String toEmail, String subject, String html) {
         try {
             if (mailUsername == null || mailUsername.isBlank()) {

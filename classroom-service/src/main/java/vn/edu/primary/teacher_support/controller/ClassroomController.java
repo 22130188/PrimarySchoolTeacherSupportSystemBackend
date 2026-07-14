@@ -1,5 +1,6 @@
 package vn.edu.primary.teacher_support.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,7 +26,7 @@ public class ClassroomController {
     public ResponseEntity<ClassroomResponse> createClassroom(
             @RequestHeader("Authorization") String authorization,
             @Valid @RequestBody CreateClassroomRequest request) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateTeacher(authorization);
         Long userId = authHelper.extractUserId(authorization);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(classroomService.createClassroom(request, userId));
@@ -51,18 +52,42 @@ public class ClassroomController {
             @RequestHeader("Authorization") String authorization,
             @PathVariable Long id,
             @Valid @RequestBody UpdateClassroomRequest request) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateTeacher(authorization);
         Long userId = authHelper.extractUserId(authorization);
         return ResponseEntity.ok(classroomService.updateClassroom(id, request, userId));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteClassroom(
+    @PatchMapping("/{id}/archive")
+    public ResponseEntity<ClassroomResponse> archiveClassroom(
             @RequestHeader("Authorization") String authorization,
-            @PathVariable Long id) {
-        authHelper.validateTeacherOrAdmin(authorization);
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        authHelper.validateTeacher(authorization);
         Long userId = authHelper.extractUserId(authorization);
-        classroomService.deleteClassroom(id, userId);
+        return ResponseEntity.ok(classroomService.archiveClassroom(
+                id, userId, authorization, clientIp(request)));
+    }
+
+    @PatchMapping("/{id}/restore")
+    public ResponseEntity<ClassroomResponse> restoreClassroom(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        authHelper.validateTeacher(authorization);
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(classroomService.restoreClassroom(
+                id, userId, authorization, clientIp(request)));
+    }
+
+    @DeleteMapping("/{id}/permanent")
+    public ResponseEntity<Void> permanentlyDeleteClassroom(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        authHelper.validateTeacher(authorization);
+        Long userId = authHelper.extractUserId(authorization);
+        classroomService.permanentlyDeleteClassroom(
+                id, userId, authorization, clientIp(request));
         return ResponseEntity.noContent().build();
     }
 
@@ -71,7 +96,7 @@ public class ClassroomController {
             @RequestHeader("Authorization") String authorization,
             @PathVariable Long id,
             @Valid @RequestBody InviteEmailRequest request) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateTeacher(authorization);
         Long userId = authHelper.extractUserId(authorization);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(invitationService.inviteByEmail(id, request.getEmail(), userId));
@@ -82,7 +107,7 @@ public class ClassroomController {
             @RequestHeader("Authorization") String authorization,
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateTeacher(authorization);
         Long userId = authHelper.extractUserId(authorization);
         return ResponseEntity.ok(excelImportService.importExcel(id, file, userId));
     }
@@ -91,7 +116,7 @@ public class ClassroomController {
     public ResponseEntity<ClassroomRosterResponse> getRoster(
             @RequestHeader("Authorization") String authorization,
             @PathVariable Long id) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateTeacher(authorization);
         Long userId = authHelper.extractUserId(authorization);
         return ResponseEntity.ok(classroomService.getRoster(id, userId));
     }
@@ -100,7 +125,7 @@ public class ClassroomController {
     public ResponseEntity<List<InvitationResponse>> getInvitations(
             @RequestHeader("Authorization") String authorization,
             @PathVariable Long id) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateTeacher(authorization);
         return ResponseEntity.ok(invitationService.getInvitations(id));
     }
 
@@ -109,7 +134,7 @@ public class ClassroomController {
             @RequestHeader("Authorization") String authorization,
             @PathVariable Long id,
             @PathVariable Long invId) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateTeacher(authorization);
         Long userId = authHelper.extractUserId(authorization);
         invitationService.resendInvitation(id, invId, userId);
         return ResponseEntity.noContent().build();
@@ -120,7 +145,7 @@ public class ClassroomController {
             @RequestHeader("Authorization") String authorization,
             @PathVariable Long id,
             @PathVariable Long invId) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateTeacher(authorization);
         Long userId = authHelper.extractUserId(authorization);
         invitationService.revokeInvitation(id, invId, userId);
         return ResponseEntity.noContent().build();
@@ -130,7 +155,7 @@ public class ClassroomController {
     public ResponseEntity<ClassroomResponse> resetInviteLink(
             @RequestHeader("Authorization") String authorization,
             @PathVariable Long id) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateTeacher(authorization);
         Long userId = authHelper.extractUserId(authorization);
         return ResponseEntity.ok(classroomService.resetInviteLink(id, userId));
     }
@@ -139,7 +164,7 @@ public class ClassroomController {
     public ResponseEntity<ClassroomResponse> resetClassCode(
             @RequestHeader("Authorization") String authorization,
             @PathVariable Long id) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateTeacher(authorization);
         Long userId = authHelper.extractUserId(authorization);
         return ResponseEntity.ok(classroomService.resetClassCode(id, userId));
     }
@@ -149,9 +174,17 @@ public class ClassroomController {
             @RequestHeader("Authorization") String authorization,
             @PathVariable Long id,
             @PathVariable Long memberId) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateTeacher(authorization);
         Long userId = authHelper.extractUserId(authorization);
         classroomService.removeStudent(id, memberId, userId);
         return ResponseEntity.noContent().build();
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }

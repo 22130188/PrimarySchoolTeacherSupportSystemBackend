@@ -1,6 +1,7 @@
 package vn.edu.primary.teacher_support.entity;
 
 import jakarta.persistence.*;
+import vn.edu.primary.teacher_support.entity.enums.ClassroomStatus;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -41,8 +42,17 @@ public class Classroom {
     @Builder.Default
     private Boolean isDeleted = false;
 
-    @Column(name = "created_at", updatable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20, columnDefinition = "VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'")
     @Builder.Default
+    private ClassroomStatus status = ClassroomStatus.ACTIVE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status_before_lock", length = 20)
+    private ClassroomStatus statusBeforeLock;
+
+    @Builder.Default
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @Column(name = "updated_at")

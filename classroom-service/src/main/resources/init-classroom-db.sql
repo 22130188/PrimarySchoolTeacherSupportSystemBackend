@@ -23,11 +23,14 @@ CREATE TABLE IF NOT EXISTS `classrooms` (
     `is_deleted`        TINYINT(1)      DEFAULT 0,
     `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `status`            VARCHAR(20)     NOT NULL DEFAULT 'ACTIVE',
+    `status_before_lock` VARCHAR(20)    NULL,
     `deleted_at`        DATETIME        NULL,
     PRIMARY KEY (`id`),
     UNIQUE INDEX `uk_class_code` (`class_code`),
     UNIQUE INDEX `uk_invite_link_token` (`invite_link_token`),
-    INDEX `idx_teacher_id` (`teacher_id`)
+    INDEX `idx_teacher_id` (`teacher_id`),
+    INDEX `idx_classroom_status` (`status`)
 ) ENGINE = InnoDB
   CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;

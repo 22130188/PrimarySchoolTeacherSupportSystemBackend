@@ -45,6 +45,13 @@ public class AuthHelper {
             throw new ForbiddenException("Chỉ giáo viên hoặc admin mới có quyền thực hiện");
         }
     }
+    public void validateTeacher(String authorization) {
+        String role = extractRole(authorization);
+        if (!"TEACHER".equalsIgnoreCase(role)) {
+            throw new ForbiddenException("Chỉ giáo viên mới có quyền thực hiện");
+        }
+    }
+
 
     public void validateStudent(String authorization) {
         String role = extractRole(authorization);
