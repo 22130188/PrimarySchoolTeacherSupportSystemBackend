@@ -35,6 +35,22 @@ public class PronunciationController {
         }
     }
 
+    @PostMapping("/check-vosk")
+    public ResponseEntity<?> checkPronunciationWithVosk(
+            @RequestParam("target_text") String targetText,
+            @RequestParam("audio_file") MultipartFile audioFile) {
+        try {
+            Map<String, Object> result = pronunciationService.checkPronunciationWithVosk(targetText, audioFile);
+            return ResponseEntity.ok(ApiResponse.success("Kiểm tra phát âm bằng Vosk thành công", result));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Invalid input: " + e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Error checking pronunciation with Vosk: " + e.getMessage()));
+        }
+    }
+
     @GetMapping("/health")
     public ResponseEntity<?> healthCheck() {
         Map<String, String> response = new HashMap<>();

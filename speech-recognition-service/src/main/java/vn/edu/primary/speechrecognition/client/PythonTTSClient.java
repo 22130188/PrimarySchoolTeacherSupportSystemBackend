@@ -17,4 +17,10 @@ public interface PythonTTSClient {
             @RequestPart("target_text") String targetText,
             @RequestPart("audio_file") MultipartFile audioFile
     );
+
+    @PostMapping(value = "/api/pronunciation/check-vosk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    Map<String, Object> checkPronunciationWithVosk(
+            @RequestPart("target_text") String targetText,
+            @RequestPart("audio_file") MultipartFile audioFile
+    );
 }
