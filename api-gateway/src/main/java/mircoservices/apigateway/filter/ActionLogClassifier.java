@@ -33,6 +33,7 @@ final class ActionLogClassifier {
         if (hasSegment(normalized, "login") || hasSegment(normalized, "logout") || normalized.contains("oauth2/code")) {
             module = "auth";
         }
+        if (normalized.contains("/forgot-password/")) module = "auth";
         if (isImagePath(normalized)) module = "images";
         if (isTtsPath(normalized)) module = "tts";
         if (isPronunciationPath(normalized)) module = "pronunciation";
@@ -87,6 +88,9 @@ final class ActionLogClassifier {
     private static String action(HttpMethod method, String path, String module) {
         if (hasSegment(path, "login") || path.contains("oauth2/code")) return "LOGIN";
         if (hasSegment(path, "logout")) return "LOGOUT";
+        if (path.endsWith("/forgot-password/request")) return "REQUEST_PASSWORD_RESET_OTP";
+        if (path.endsWith("/forgot-password/verify")) return "VERIFY_PASSWORD_RESET_OTP";
+        if (path.endsWith("/forgot-password/reset")) return "RESET_PASSWORD";
         if (hasSegment(path, "password")) return "CHANGE_PASSWORD";
         if (hasSegment(path, "export") || hasSegment(path, "download")) return "EXPORT_" + upper(module);
         // Ảnh / TTS
@@ -190,6 +194,8 @@ final class ActionLogClassifier {
 
     private static String severity(HttpMethod method, String path, String module, String action) {
         if (action.equals("LOGIN") || action.equals("LOGOUT")) return "INFO";
+        if (action.equals("REQUEST_PASSWORD_RESET_OTP") || action.equals("VERIFY_PASSWORD_RESET_OTP")) return "INFO";
+        if (action.equals("RESET_PASSWORD")) return "DANGER";
         if (method == HttpMethod.DELETE || path.contains("permission") || path.contains("role") || action.equals("LOGIN_FAILED")) {
             return "ALERT";
         }

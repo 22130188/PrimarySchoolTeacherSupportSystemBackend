@@ -164,7 +164,7 @@ public class ActionLoggingGlobalFilter implements GlobalFilter, Ordered {
         payload.put("resourceId", classification.resourceId());
         payload.put("httpMethod", method.name());
         payload.put("endpoint", path);
-        payload.put("severity", failed && "LOGIN_FAILED".equals(action) ? "ALERT" : classification.severity());
+        payload.put("severity", severityFor(action, classification.severity(), failed));
         payload.put("status", failed ? "FAILED" : "SUCCESS");
         payload.put("description", "{\"statusCode\":" + statusCode + ",\"durationMs\":" + (System.currentTimeMillis() - startedAt) + "}");
         payload.put("ipAddress", clientIp(exchange));
@@ -193,6 +193,16 @@ public class ActionLoggingGlobalFilter implements GlobalFilter, Ordered {
             }
         }
         return null;
+    }
+
+    static String severityFor(String action, String defaultSeverity, boolean failed) {
+        return failed && isSensitiveAuthAction(action) ? "ALERT" : defaultSeverity;
+    }
+
+    private static boolean isSensitiveAuthAction(String action) {
+        return "LOGIN_FAILED".equals(action)
+                || "VERIFY_PASSWORD_RESET_OTP".equals(action)
+                || "RESET_PASSWORD".equals(action);
     }
 
     private String clientIp(ServerWebExchange exchange) {

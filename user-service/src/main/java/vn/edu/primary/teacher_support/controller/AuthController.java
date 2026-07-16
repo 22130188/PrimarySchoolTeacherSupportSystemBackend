@@ -9,8 +9,12 @@ import vn.edu.primary.teacher_support.dto.LoginRequest;
 import vn.edu.primary.teacher_support.dto.LoginResponse;
 import vn.edu.primary.teacher_support.dto.OtpRequest;
 import vn.edu.primary.teacher_support.dto.RegisterRequest;
+import vn.edu.primary.teacher_support.dto.ForgotPasswordRequest;
+import vn.edu.primary.teacher_support.dto.ResetPasswordRequest;
+import vn.edu.primary.teacher_support.dto.VerifyResetOtpRequest;
 import vn.edu.primary.teacher_support.entity.User;
 import vn.edu.primary.teacher_support.service.AuthService;
+import vn.edu.primary.teacher_support.service.ForgotPasswordService;
 import vn.edu.primary.teacher_support.service.OtpService;
 
 import java.util.Map;
@@ -22,11 +26,16 @@ public class AuthController {
 
     private final AuthService authService;
     private final OtpService  otpService;
+    private final ForgotPasswordService forgotPasswordService;
     private final RestTemplate restTemplate;
 
-    public AuthController(AuthService authService, OtpService otpService, RestTemplate restTemplate) {
+    public AuthController(AuthService authService,
+                          OtpService otpService,
+                          ForgotPasswordService forgotPasswordService,
+                          RestTemplate restTemplate) {
         this.authService = authService;
         this.otpService  = otpService;
+        this.forgotPasswordService = forgotPasswordService;
         this.restTemplate = restTemplate;
     }
 
@@ -78,6 +87,34 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<Void> logout() {
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/forgot-password/request")
+    public ResponseEntity<Map<String, Object>> requestPasswordReset(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        forgotPasswordService.requestOtp(request.email());
+        return ResponseEntity.ok(Map.of(
+                "message", "Nếu email đã được đăng ký, mã OTP sẽ được gửi đến hộp thư của bạn.",
+                "expiresInSeconds", 300
+        ));
+    }
+
+    @PostMapping("/forgot-password/verify")
+    public ResponseEntity<Map<String, Object>> verifyPasswordResetOtp(
+            @Valid @RequestBody VerifyResetOtpRequest request) {
+        String resetToken = forgotPasswordService.verifyOtp(request.email(), request.otp());
+        return ResponseEntity.ok(Map.of(
+                "message", "Xác thực OTP thành công.",
+                "resetToken", resetToken,
+                "expiresInSeconds", 600
+        ));
+    }
+
+    @PostMapping("/forgot-password/reset")
+    public ResponseEntity<Map<String, String>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        forgotPasswordService.resetPassword(request.email(), request.resetToken(), request.newPassword());
+        return ResponseEntity.ok(Map.of("message", "Mật khẩu đã được cập nhật thành công."));
     }
 
     /**
