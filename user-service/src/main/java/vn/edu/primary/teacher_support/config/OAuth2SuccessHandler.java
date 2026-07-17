@@ -76,7 +76,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             String email = user != null ? user.getEmail() : String.valueOf(oAuth2User.getAttribute("email"));
             log.warn("Blocked OAuth2 login for inactive account: {}", email);
             accessLogService.recordLogin(user != null ? user.getUsername() : email, user, false, request);
-            response.sendRedirect(FRONTEND_URL + "/login?error=" +
+            String base = frontendUrl == null ? "http://localhost:5173" : frontendUrl.replaceAll("/$", "");
+            response.sendRedirect(base + "/login?error=" +
                     java.net.URLEncoder.encode("Tài khoản đã bị khóa", java.nio.charset.StandardCharsets.UTF_8));
             return;
         }
