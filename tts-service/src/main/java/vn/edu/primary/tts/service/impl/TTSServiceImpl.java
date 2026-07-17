@@ -12,18 +12,15 @@ import com.cloudinary.utils.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
+
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -63,28 +60,40 @@ public class TTSServiceImpl implements TTSService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        // Python middleware bỏ log khi có header này (đã log ở Gateway)
         headers.set("X-Action-Logged-By-Gateway", "true");
         headers.set("X-Internal-Service", "true");
         HttpEntity<TTSConvertRequest> entity = new HttpEntity<>(request, headers);
 
+        @SuppressWarnings("unchecked")
         Map<String, Object> responseFromPython = restTemplate.postForObject(
             pythonEndpoint,
             entity,
             Map.class
         );
 
-        if (responseFromPython == null || !responseFromPython.containsKey("filename")) {
+        if (responseFromPython == null) {
             throw new Exception("Failed to convert text to speech from Python API");
         }
 
-        String localFilePath = (String) responseFromPython.get("filename");
-        
-        String cloudinaryUrl = uploadToCloudinary(localFilePath);
-        
-        new File(localFilePath).delete();
-        
-        return cloudinaryUrl;
+        // Preferred: audio bytes as base64 (works across Docker containers)
+        Object b64Obj = responseFromPython.get("audio_base64");
+        if (b64Obj != null) {
+            String b64 = String.valueOf(b64Obj).trim();
+            if (!b64.isEmpty() && !"null".equalsIgnoreCase(b64)) {
+                byte[] audioBytes = Base64.getDecoder().decode(b64);
+                return uploadBytesToCloudinary(audioBytes);
+            }
+        }
+
+        // Legacy fallback: local path only works if python & tts share filesystem
+        if (responseFromPython.containsKey("filename")) {
+            String localFilePath = String.valueOf(responseFromPython.get("filename"));
+            String cloudinaryUrl = uploadToCloudinary(localFilePath);
+            new File(localFilePath).delete();
+            return cloudinaryUrl;
+        }
+
+        throw new Exception("Failed to convert text to speech from Python API (no audio_base64/filename)");
     }
 
     @Override
@@ -107,7 +116,7 @@ public class TTSServiceImpl implements TTSService {
         if (file.isEmpty()) {
             throw new Exception("File is empty");
         }
-        
+
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("audio/")) {
             throw new Exception("File must be an audio file");
@@ -121,7 +130,7 @@ public class TTSServiceImpl implements TTSService {
         String cloudinaryUrl = uploadAudioToCloudinary(file);
 
         AudioRecord record = AudioRecord.builder()
-                .text("") // No text for uploaded audio
+                .text("")
                 .audioUrl(cloudinaryUrl)
                 .userId(userId)
                 .userName(userName)
@@ -162,9 +171,23 @@ public class TTSServiceImpl implements TTSService {
         audioRecordRepository.deleteById(audioId);
     }
 
+    private String uploadBytesToCloudinary(byte[] audioBytes) throws Exception {
+        if (audioBytes == null || audioBytes.length == 0) {
+            throw new Exception("Audio bytes empty");
+        }
+        Map<String, Object> uploadParams = ObjectUtils.asMap(
+            "resource_type", "auto",
+            "folder", cloudinaryConfig.getFolder(),
+            "public_id", "tts_" + System.currentTimeMillis(),
+            "format", "mp3"
+        );
+        Map<?, ?> uploadResult = cloudinary.uploader().upload(audioBytes, uploadParams);
+        return (String) uploadResult.get("secure_url");
+    }
+
     private String uploadToCloudinary(String filePath) throws Exception {
         File file = new File(filePath);
-        
+
         if (!file.exists()) {
             throw new Exception("Audio file not found: " + filePath);
         }
@@ -175,8 +198,8 @@ public class TTSServiceImpl implements TTSService {
             "public_id", "tts_" + System.currentTimeMillis()
         );
 
-        Map<String, Object> uploadResult = cloudinary.uploader().upload(file, uploadParams);
-        
+        Map<?, ?> uploadResult = cloudinary.uploader().upload(file, uploadParams);
+
         return (String) uploadResult.get("secure_url");
     }
 
@@ -188,11 +211,11 @@ public class TTSServiceImpl implements TTSService {
                 "public_id", "audio_" + System.currentTimeMillis()
             );
 
-            Map<String, Object> uploadResult = cloudinary.uploader().upload(
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(
                 file.getBytes(),
                 uploadParams
             );
-            
+
             return (String) uploadResult.get("secure_url");
         } catch (Exception e) {
             throw new Exception("Failed to upload audio to Cloudinary: " + e.getMessage());
