@@ -33,6 +33,9 @@ public class AuthHelper {
     }
 
     public void validateAdmin(String authorization) {
+        boolean hasBearer = authorization != null && authorization.startsWith("Bearer ");
+        log.info("validateAdmin hasBearer={} authLen={}", hasBearer,
+                authorization == null ? 0 : authorization.length());
         String role;
         try {
             role = extractRole(authorization);
