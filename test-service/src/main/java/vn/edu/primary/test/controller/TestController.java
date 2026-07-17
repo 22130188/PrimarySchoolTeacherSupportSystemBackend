@@ -124,7 +124,7 @@ public class TestController {
         }
     }
 
-    @GetMapping
+    @GetMapping({"", "/"})
     public ResponseEntity<ApiResponse<List<TestResponse>>> getAllTests(
             @RequestHeader(value = "Authorization", required = false) String token) {
         if (token == null || token.trim().isEmpty()) {

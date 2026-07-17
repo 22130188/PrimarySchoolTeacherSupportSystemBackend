@@ -27,6 +27,21 @@ public class JwtService {
         return extractAllClaims(token).get("email", String.class);
     }
 
+    public Long extractUserId(String token) {
+        try {
+            Object value = extractAllClaims(token).get("userId");
+            if (value instanceof Number number) {
+                return number.longValue();
+            }
+            if (value != null) {
+                return Long.parseLong(value.toString());
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
         return extractAllClaims(token).get("roles", List.class);

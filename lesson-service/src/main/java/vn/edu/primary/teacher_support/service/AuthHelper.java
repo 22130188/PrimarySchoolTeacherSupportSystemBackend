@@ -16,10 +16,18 @@ public class AuthHelper {
 
     public Long extractUserId(String authorization) {
         String token = resolveToken(authorization);
+        // Prefer claim userId (no network hop)
+        Long claimUserId = jwtService.extractUserId(token);
+        if (claimUserId != null && claimUserId > 0) {
+            return claimUserId;
+        }
         String email = jwtService.extractEmail(token);
-        UserDto user = userServiceClient.findByEmail(email)
-                .orElseThrow(() -> new ForbiddenException("Không tìm thấy người dùng với email: " + email));
-        return user.getId();
+        if (email != null && !email.isBlank()) {
+            UserDto user = userServiceClient.findByEmail(email)
+                    .orElseThrow(() -> new ForbiddenException("Không tìm thấy người dùng với email: " + email));
+            return user.getId();
+        }
+        throw new ForbiddenException("Token không chứa userId/email");
     }
 
     public String extractRole(String authorization) {
@@ -43,7 +51,7 @@ public class AuthHelper {
 
     private String resolveToken(String authorization) {
         if (authorization != null && authorization.startsWith("Bearer ")) {
-            return authorization.substring(7);
+            return authorization.substring(7).trim();
         }
         throw new ForbiddenException("Token không hợp lệ");
     }

@@ -2,6 +2,7 @@ package vn.edu.primary.teacher_support.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -15,13 +16,19 @@ import java.util.Optional;
 public class UserServiceClient {
 
     private final RestTemplate restTemplate;
-    private static final String USER_SERVICE_URL = "http://user-service";
+
+    @Value("${user.service.url:http://user-service:8082}")
+    private String userServiceUrl;
 
     public Optional<UserDto> findByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return Optional.empty();
+        }
         try {
             ResponseEntity<UserDto> response = restTemplate.getForEntity(
-                    USER_SERVICE_URL + "/api/internal/users/by-email?email=" + email,
-                    UserDto.class);
+                    userServiceUrl + "/api/internal/users/by-email?email={email}",
+                    UserDto.class,
+                    email);
             return Optional.ofNullable(response.getBody());
         } catch (Exception e) {
             log.warn("Failed to fetch user by email {}: {}", email, e.getMessage());
@@ -30,10 +37,14 @@ public class UserServiceClient {
     }
 
     public Optional<UserDto> findById(Long id) {
+        if (id == null) {
+            return Optional.empty();
+        }
         try {
             ResponseEntity<UserDto> response = restTemplate.getForEntity(
-                    USER_SERVICE_URL + "/api/internal/users/" + id,
-                    UserDto.class);
+                    userServiceUrl + "/api/internal/users/{id}",
+                    UserDto.class,
+                    id);
             return Optional.ofNullable(response.getBody());
         } catch (Exception e) {
             log.warn("Failed to fetch user by id {}: {}", id, e.getMessage());

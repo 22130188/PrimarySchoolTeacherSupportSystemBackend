@@ -31,6 +31,9 @@ server:
   # servlet:
   #   context-path: /api/tests  # Đã bỏ vì trùng với @RequestMapping
 
+spring.mvc:
+  trailing-slash-match: true
+
 eureka:
   client:
     service-url:
