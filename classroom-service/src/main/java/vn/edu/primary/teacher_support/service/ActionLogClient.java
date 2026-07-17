@@ -12,7 +12,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class ActionLogClient {
-    private static final String ACTION_LOG_URL = "http://user-service/api/internal/action-logs";
+    private static final String ACTION_LOG_URL = "http://user-service:8082/api/internal/action-logs";
 
     private final RestTemplate restTemplate;
 

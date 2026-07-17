@@ -16,7 +16,7 @@ import java.util.Map;
 public class NotificationClient {
 
     private static final String NOTIFICATION_URL =
-            "http://user-service/api/internal/users/notifications";
+            "http://user-service:8082/api/internal/users/notifications";
 
     private final RestTemplate restTemplate;
 
