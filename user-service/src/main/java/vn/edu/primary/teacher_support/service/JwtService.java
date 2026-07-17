@@ -24,12 +24,22 @@ public class JwtService {
     }
 
     public String generateToken(User user) {
+        // Prefer user_roles join table; fall back to users.role column (many admin rows only set role)
+        java.util.LinkedHashSet<String> roleNames = new java.util.LinkedHashSet<>();
+        if (user.getRoles() != null) {
+            user.getRoles().stream()
+                    .filter(r -> r != null && r.getName() != null)
+                    .map(r -> r.getName().name())
+                    .forEach(roleNames::add);
+        }
+        if (user.getRole() != null) {
+            roleNames.add(user.getRole().name());
+        }
         return Jwts.builder()
                 .setSubject(user.getUsername())
                 .claim("userId", user.getId())
                 .claim("email", user.getEmail())
-                .claim("roles", user.getRoles().stream()
-                        .map(r -> r.getName().name()).toList())
+                .claim("roles", roleNames.stream().toList())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getKey(), SignatureAlgorithm.HS256)
