@@ -23,7 +23,7 @@ public class ActionLogController {
     private final UserRepository userRepository;
     private final JwtService jwtService;
 
-    @GetMapping
+    @GetMapping({"", "/"})
     public Page<ActionLog> search(
             @RequestHeader("Authorization") String authorization,
             @RequestParam(required = false) String identity,
