@@ -16,7 +16,8 @@ public class UserServiceClient {
 
     private final RestTemplate restTemplate;
 
-    private static final String USER_SERVICE_URL = "http://user-service";
+    // Docker DNS name + container port (not Eureka load-balanced URL without port)
+    private static final String USER_SERVICE_URL = "http://user-service:8082";
 
     public Optional<UserDto> findById(Long userId) {
         try {
