@@ -32,16 +32,24 @@ public class JwtService {
         return claims.get("email", String.class);
     }
 
-    @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
         Claims claims = extractAllClaims(token);
-        return claims.get("roles", List.class);
+        Object raw = claims.get("roles");
+        if (raw instanceof List<?> list) {
+            return list.stream()
+                    .filter(java.util.Objects::nonNull)
+                    .map(Object::toString)
+                    .toList();
+        }
+        if (raw instanceof String s && !s.isBlank()) {
+            return List.of(s);
+        }
+        return List.of();
     }
 
     public String extractPrimaryRole(String token) {
         List<String> roles = extractRoles(token);
-        if (roles != null && !roles.isEmpty()) {
-            // Normalize ROLE_ADMIN / Admin → ADMIN
+        if (!roles.isEmpty()) {
             java.util.List<String> normalized = roles.stream()
                     .filter(r -> r != null && !r.isBlank())
                     .map(r -> r.trim().toUpperCase().replace("ROLE_", ""))
@@ -51,7 +59,6 @@ public class JwtService {
             if (normalized.contains("STUDENT")) return "STUDENT";
             return normalized.get(0);
         }
-        // Fallback: single "role" claim if present
         Claims claims = extractAllClaims(token);
         Object single = claims.get("role");
         if (single != null) {

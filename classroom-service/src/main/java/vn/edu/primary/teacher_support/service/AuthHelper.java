@@ -33,9 +33,16 @@ public class AuthHelper {
     }
 
     public void validateAdmin(String authorization) {
-        String role = extractRole(authorization);
-        if (!"ADMIN".equalsIgnoreCase(role)) {
-            throw new ForbiddenException("Chỉ admin mới có quyền thực hiện");
+        String role;
+        try {
+            role = extractRole(authorization);
+        } catch (Exception e) {
+            log.warn("validateAdmin JWT parse failed: {}", e.getMessage());
+            throw new ForbiddenException("Token không hợp lệ hoặc JWT_SECRET không khớp: " + e.getMessage());
+        }
+        log.info("validateAdmin role={}", role);
+        if (role == null || !"ADMIN".equalsIgnoreCase(role.trim())) {
+            throw new ForbiddenException("Chỉ admin mới có quyền thực hiện (role=" + role + ")");
         }
     }
 
