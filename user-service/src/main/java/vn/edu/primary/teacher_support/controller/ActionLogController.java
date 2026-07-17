@@ -27,6 +27,7 @@ public class ActionLogController {
     public Page<ActionLog> search(
             @RequestHeader("Authorization") String authorization,
             @RequestParam(required = false) String identity,
+            @RequestParam(required = false) String resourceId,
             @RequestParam(required = false) String module,
             @RequestParam(required = false) String action,
             @RequestParam(required = false) String severity,
@@ -37,7 +38,7 @@ public class ActionLogController {
             @RequestParam(defaultValue = "20") int size) {
         authenticateAdmin(authorization);
         int safeSize = Math.min(Math.max(size, 1), 500);
-        return actionLogService.search(identity, module, action, severity, status, from, to,
+        return actionLogService.search(identity, module, action, resourceId, severity, status, from, to,
                 PageRequest.of(Math.max(page, 0), safeSize, Sort.by(Sort.Direction.DESC, "createdAt")));
     }
 

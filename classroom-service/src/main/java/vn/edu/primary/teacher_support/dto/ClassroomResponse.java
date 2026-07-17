@@ -23,5 +23,6 @@ public class ClassroomResponse {
     private Integer gradeLevel;
     private String subject;
     private LocalDateTime createdAt;
+    private String status;
     private LocalDateTime updatedAt;
 }

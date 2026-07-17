@@ -34,4 +34,25 @@ public class ActionLogClient {
             log.warn("Không ghi được action log action={}: {}", action, e.getMessage());
         }
     }
+
+    public void logAuthenticated(String authorization, String action, String resourceId,
+            String httpMethod, String endpoint, String severity, String description, String ipAddress) {
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("authToken", authorization);
+            payload.put("action", action);
+            payload.put("module", "classrooms");
+            payload.put("resourceId", resourceId);
+            payload.put("httpMethod", httpMethod);
+            payload.put("endpoint", endpoint);
+            payload.put("severity", severity == null ? "WARNING" : severity);
+            payload.put("status", "SUCCESS");
+            payload.put("description", description);
+            payload.put("ipAddress", ipAddress);
+            restTemplate.postForEntity(ACTION_LOG_URL, payload, Map.class);
+        } catch (Exception exception) {
+            log.warn("Không ghi được action log action={}: {}", action, exception.getMessage());
+        }
+    }
+
 }

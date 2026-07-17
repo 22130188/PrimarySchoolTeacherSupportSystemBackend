@@ -32,7 +32,7 @@ spring:
         - id: user-service
           uri: lb://user-service
           predicates:
-            - Path=/api/user/**,/api/admin/users/**,/api/admin/categories/**,/api/admin/notifications/**,/api/admin/guides/**,/api/admin/dashboard/**,/api/admin/access-logs/**,/api/action-logs/**,/api/guides/**,/api/admin/feedback/**,/api/user/feedback,/api/auth/login,/api/auth/logout,/api/auth/register,/api/auth/send-otp,/api/auth/verify-otp,/oauth2/**,/login/oauth2/**
+            - Path=/api/user/**,/api/admin/users/**,/api/admin/categories/**,/api/admin/notifications/**,/api/admin/guides/**,/api/admin/dashboard/**,/api/admin/access-logs/**,/api/action-logs/**,/api/guides/**,/api/admin/feedback/**,/api/user/feedback,/api/auth/login,/api/auth/logout,/api/auth/register,/api/auth/send-otp,/api/auth/verify-otp,/api/auth/forgot-password/**,/oauth2/**,/login/oauth2/**
 
         - id: auth-service
           uri: lb://auth-service

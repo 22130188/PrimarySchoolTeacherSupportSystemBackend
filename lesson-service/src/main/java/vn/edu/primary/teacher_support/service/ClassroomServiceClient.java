@@ -52,6 +52,12 @@ public class ClassroomServiceClient {
                 .orElse(null);
     }
     
+    public boolean isWritable(Long classroomId) {
+        return findById(classroomId)
+                .map(classroom -> Boolean.TRUE.equals(classroom.get("writable")))
+                .orElse(false);
+    }
+
     public boolean hasAccess(Long classroomId, Long userId) {
         try {
             @SuppressWarnings("unchecked")

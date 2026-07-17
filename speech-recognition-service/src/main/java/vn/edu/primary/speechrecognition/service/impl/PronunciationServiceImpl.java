@@ -15,6 +15,29 @@ public class PronunciationServiceImpl implements PronunciationService {
 
     @Override
     public Map<String, Object> checkPronunciation(String targetText, MultipartFile audioFile) throws Exception {
+        validateInput(targetText, audioFile);
+
+        try {
+            Map<String, Object> result = pythonTTSClient.checkPronunciation(targetText, audioFile);
+            return requireResult(result);
+        } catch (Exception e) {
+            throw new Exception("Error calling Python pronunciation service: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public Map<String, Object> checkPronunciationWithVosk(String targetText, MultipartFile audioFile) throws Exception {
+        validateInput(targetText, audioFile);
+
+        try {
+            Map<String, Object> result = pythonTTSClient.checkPronunciationWithVosk(targetText, audioFile);
+            return requireResult(result);
+        } catch (Exception e) {
+            throw new Exception("Error calling Python Vosk pronunciation service: " + e.getMessage(), e);
+        }
+    }
+
+    private void validateInput(String targetText, MultipartFile audioFile) {
         if (targetText == null || targetText.trim().isEmpty()) {
             throw new IllegalArgumentException("Target text cannot be empty");
         }
@@ -22,15 +45,12 @@ public class PronunciationServiceImpl implements PronunciationService {
         if (audioFile == null || audioFile.isEmpty()) {
             throw new IllegalArgumentException("Audio file cannot be empty");
         }
+    }
 
-        try {
-            Map<String, Object> result = pythonTTSClient.checkPronunciation(targetText, audioFile);
-            if (result == null) {
-                throw new Exception("Failed to check pronunciation from Python API");
-            }
-            return result;
-        } catch (Exception e) {
-            throw new Exception("Error calling Python pronunciation service: " + e.getMessage(), e);
+    private Map<String, Object> requireResult(Map<String, Object> result) throws Exception {
+        if (result == null) {
+            throw new Exception("Failed to check pronunciation from Python API");
         }
+        return result;
     }
 }

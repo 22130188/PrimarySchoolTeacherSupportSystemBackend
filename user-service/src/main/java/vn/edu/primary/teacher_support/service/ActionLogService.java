@@ -51,8 +51,8 @@ public class ActionLogService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ActionLog> search(String identity, String module, String action, String severity,
-                                  String status, LocalDateTime from, LocalDateTime to, Pageable pageable) {
+    public Page<ActionLog> search(String identity, String module, String action, String resourceId,
+                                  String severity, String status, LocalDateTime from, LocalDateTime to, Pageable pageable) {
         Specification<ActionLog> specification = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (identity != null && !identity.isBlank()) {
@@ -67,6 +67,9 @@ public class ActionLogService {
                 predicates.add(cb.like(cb.lower(root.get("action")), "%" + action.trim().toLowerCase() + "%"));
             }
             if (severity != null && !severity.isBlank()) predicates.add(cb.equal(root.get("severity"), parseSeverity(severity)));
+            if (resourceId != null && !resourceId.isBlank()) {
+                predicates.add(cb.equal(root.get("resourceId"), resourceId.trim()));
+            }
             if (status != null && !status.isBlank()) predicates.add(cb.equal(root.get("status"), status.toUpperCase()));
             if (from != null) predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), from));
             if (to != null) predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), to));
