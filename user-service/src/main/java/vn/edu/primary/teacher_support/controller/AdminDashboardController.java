@@ -16,6 +16,7 @@ public class AdminDashboardController {
     private final UserRepository userRepository;
     private final FeedbackRepository feedbackRepository;
     private final JwtService jwtService;
+    private final ActionLogRepository actionLogRepository;
 
     @GetMapping("/overview")
     public OverviewResponse overview(@RequestHeader(value = "Authorization", required = false) String authorization) {
@@ -31,7 +32,41 @@ public class AdminDashboardController {
                 .forEach(item -> feedbackByMonth[item.getCreatedAt().getMonthValue() - 1]++);
         List<MonthlyActivity> monthly = new ArrayList<>();
         for (int month = 1; month <= 12; month++) monthly.add(new MonthlyActivity(month, usersByMonth[month - 1], feedbackByMonth[month - 1]));
-        return new OverviewResponse(year, monthly, recentActivities(users, feedback));
+
+        // Calculate AI Usage from Action Logs
+        // Module names in DB are lowercase: 'tts', 'images', 'pronunciation'
+        // Translate does not have its own module — it uses module='lessons' with action='CREATE_BILINGUAL_LESSON'
+        List<Object[]> aiCounts = actionLogRepository.countByModules(List.of("tts", "images", "pronunciation"));
+        Map<String, Long> aiUsage = new LinkedHashMap<>();
+        aiUsage.put("TTS", 0L);
+        aiUsage.put("IMAGE", 0L);
+        aiUsage.put("PRONUNCIATION", 0L);
+        aiUsage.put("TRANSLATE", 0L);
+        for (Object[] row : aiCounts) {
+            if (row.length >= 2 && row[0] != null) {
+                String mod = row[0].toString().toLowerCase();
+                long count = ((Number) row[1]).longValue();
+                if ("tts".equals(mod)) aiUsage.put("TTS", count);
+                else if ("images".equals(mod)) aiUsage.put("IMAGE", count);
+                else if ("pronunciation".equals(mod)) aiUsage.put("PRONUNCIATION", count);
+            }
+        }
+        // Count translate (bilingual lesson) actions separately
+        long translateCount = actionLogRepository.countByAction("CREATE_BILINGUAL_LESSON");
+        aiUsage.put("TRANSLATE", translateCount);
+
+        // Calculate Feedback Stats by status
+        Map<String, Long> feedbackStats = new HashMap<>();
+        feedbackStats.put("NEW", 0L);
+        feedbackStats.put("IN_PROGRESS", 0L);
+        feedbackStats.put("RESOLVED", 0L);
+        feedbackStats.put("CLOSED", 0L);
+        for (Feedback item : feedback) {
+            String status = item.getStatus() != null ? item.getStatus().toUpperCase() : "NEW";
+            feedbackStats.put(status, feedbackStats.getOrDefault(status, 0L) + 1);
+        }
+
+        return new OverviewResponse(year, monthly, recentActivities(users, feedback), aiUsage, feedbackStats);
     }
 
     private List<RecentActivity> recentActivities(List<User> users, List<Feedback> feedback) {
@@ -53,7 +88,13 @@ public class AdminDashboardController {
         if (user.getRole() != Role.RoleName.ADMIN && user.getRoles().stream().noneMatch(r -> r.getName() == Role.RoleName.ADMIN)) throw new RuntimeException("Bạn không có quyền xem tổng quan");
     }
 
-    public record OverviewResponse(int year, List<MonthlyActivity> monthlyActivity, List<RecentActivity> recentActivities) {}
+    public record OverviewResponse(
+            int year, 
+            List<MonthlyActivity> monthlyActivity, 
+            List<RecentActivity> recentActivities,
+            Map<String, Long> aiUsage,
+            Map<String, Long> feedbackStats
+    ) {}
     public record MonthlyActivity(int month, int newUsers, int feedbackCount) {}
     public record RecentActivity(String type, String actor, String action, String subject, LocalDateTime createdAt, String resourceId) {}
 }

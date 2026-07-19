@@ -11,4 +11,9 @@ public interface ActionLogRepository extends JpaRepository<ActionLog, Long>, Jpa
     List<ActionLog> findTop8ByOrderByCreatedAtDesc();
     List<ActionLog> findTop30ByOrderByCreatedAtDesc();
     long countByStatusAndCreatedAtBetween(String status, LocalDateTime from, LocalDateTime to);
+
+    @org.springframework.data.jpa.repository.Query("SELECT a.module, COUNT(a) FROM ActionLog a WHERE a.module IN :modules GROUP BY a.module")
+    List<Object[]> countByModules(@org.springframework.data.repository.query.Param("modules") List<String> modules);
+
+    long countByAction(String action);
 }

@@ -236,6 +236,15 @@ public class CollaboraSessionService {
         return buildEditorSession(userId, draftId, draft, false, false);
     }
 
+    public CollaboraEditorSessionResponse getAdminViewEditorSession(Long userId, Long draftId) {
+        LessonDraft draft = draftRepository.findById(draftId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay bai giang Collabora"));
+        if (!ALLOWED_TYPES.contains(draft.getType())) {
+            throw new BusinessException("Bai giang nay khong phai dinh dang Collabora");
+        }
+        return buildEditorSession(userId, draftId, draft, false, false);
+    }
+
     public CollaboraEditorSessionResponse getClassroomEditorSession(Long userId, Long classroomId, Long draftId) {
         if (!classroomServiceClient.hasAccess(classroomId, userId)) {
             throw new ForbiddenException("Ban khong co quyen truy cap lop hoc nay");
@@ -255,16 +264,16 @@ public class CollaboraSessionService {
         return buildEditorSession(userId, draftId, draft, canWrite, canWrite);
     }
 
-    public CollaboraEditorSessionResponse getTemplateEditorSession(Long userId, Long templateId) {
+    public CollaboraEditorSessionResponse getTemplateEditorSession(Long userId, Long templateId, boolean canEdit) {
         LessonTemplate template = templateRepository.findById(templateId)
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay mau bai giang"));
-        if (template.getStatus() != LessonTemplateStatus.ACTIVE) {
+        if (!canEdit && template.getStatus() != LessonTemplateStatus.ACTIVE) {
             throw new BusinessException("Mau bai giang nay dang tam an");
         }
         if (!ALLOWED_TYPES.contains(template.getType()) || !ALLOWED_EXTENSIONS.contains(template.getExtension())) {
             throw new BusinessException("Mau bai giang khong hop le");
         }
-        return buildTemplateEditorSession(userId, template);
+        return buildTemplateEditorSession(userId, template, canEdit);
     }
 
     private CollaboraEditorSessionResponse buildEditorSession(
@@ -303,7 +312,7 @@ public class CollaboraSessionService {
                 .build();
     }
 
-    private CollaboraEditorSessionResponse buildTemplateEditorSession(Long userId, LessonTemplate template) {
+    private CollaboraEditorSessionResponse buildTemplateEditorSession(Long userId, LessonTemplate template, boolean canEdit) {
         String accessToken = UUID.randomUUID().toString();
         activeSessions.put(sessionKey(template.getFileId(), accessToken), new CollaboraFileSession(
                 template.getFileId(),
@@ -311,12 +320,13 @@ public class CollaboraSessionService {
                 template.getExtension(),
                 userId,
                 null,
+                template.getId(),
                 accessToken,
-                false,
-                false
+                canEdit,
+                canEdit
         ));
 
-        String actionUrl = resolveActionUrl(template.getExtension(), "view");
+        String actionUrl = resolveActionUrl(template.getExtension(), canEdit ? "edit" : "view");
         String wopiSrc = wopiPublicUrl.replaceAll("/+$", "") + "/" +
                 URLEncoder.encode(template.getFileId(), StandardCharsets.UTF_8).replace("+", "%20");
         String fullActionUrl = actionUrl + "?WOPISrc=" + URLEncoder.encode(wopiSrc, StandardCharsets.UTF_8);
@@ -328,7 +338,7 @@ public class CollaboraSessionService {
                 .actionUrl(fullActionUrl)
                 .accessToken(accessToken)
                 .accessTokenTtl("0")
-                .canWrite(false)
+                .canWrite(canEdit)
                 .build();
     }
 
@@ -430,6 +440,12 @@ public class CollaboraSessionService {
 
         try {
             supabaseStorageService.uploadFile(session.getFileId(), content, contentType(session.getExtension()));
+            if (session.getTemplateId() != null) {
+                templateRepository.findById(session.getTemplateId()).ifPresent(template -> {
+                    template.setUpdatedAt(java.time.LocalDateTime.now());
+                    templateRepository.save(template);
+                });
+            }
         } catch (Exception e) {
             throw new BusinessException("Khong the luu file Collabora len Supabase");
         }
@@ -646,6 +662,7 @@ private String resolveActionUrl(String extension, String actionName) {
         private final String extension;
         private final Long userId;
         private final Long draftId;
+        private final Long templateId;
         private final String accessToken;
         private final boolean canWrite;
         private final boolean canPersist;
@@ -660,11 +677,26 @@ private String resolveActionUrl(String extension, String actionName) {
                 boolean canWrite,
                 boolean canPersist
         ) {
+            this(fileId, fileName, extension, userId, draftId, null, accessToken, canWrite, canPersist);
+        }
+
+        public CollaboraFileSession(
+                String fileId,
+                String fileName,
+                String extension,
+                Long userId,
+                Long draftId,
+                Long templateId,
+                String accessToken,
+                boolean canWrite,
+                boolean canPersist
+        ) {
             this.fileId = fileId;
             this.fileName = fileName;
             this.extension = extension;
             this.userId = userId;
             this.draftId = draftId;
+            this.templateId = templateId;
             this.accessToken = accessToken;
             this.canWrite = canWrite;
             this.canPersist = canPersist;

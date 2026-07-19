@@ -66,6 +66,12 @@ public class LessonDraftService {
         return toResponse(draft);
     }
 
+    public DraftResponse getDraftForAdmin(Long id) {
+        LessonDraft draft = draftRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài giảng với id: " + id));
+        return toResponse(draft);
+    }
+
     public void deleteDraft(Long id, Long userId) {
         LessonDraft draft = draftRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bản nháp với id: " + id));
