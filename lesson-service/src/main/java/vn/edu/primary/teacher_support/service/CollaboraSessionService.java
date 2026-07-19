@@ -529,6 +529,13 @@ private String resolveActionUrl(String extension, String actionName) {
             }
 
             String actionUrl = actionUrlCache.get(cacheKey);
+            // CODE discovery often only exposes edit for pptx (no separate view action)
+            if (actionUrl == null && "view".equalsIgnoreCase(actionName)) {
+                actionUrl = actionUrlCache.get(extension + ":edit");
+            }
+            if (actionUrl == null && "edit".equalsIgnoreCase(actionName)) {
+                actionUrl = actionUrlCache.get(extension + ":view");
+            }
             if (actionUrl == null) {
                 throw new BusinessException("Collabora khong ho tro " + actionName + " cho dinh dang " + extension);
             }
