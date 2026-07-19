@@ -87,15 +87,23 @@ public class LessonDraftController {
     @GetMapping("/admin/all")
     public ResponseEntity<List<AdminDraftResponse>> getAllDraftsForAdmin(
             @RequestHeader("Authorization") String authorization) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateAdmin(authorization);
         return ResponseEntity.ok(draftService.getAllDraftsForAdmin());
+    }
+
+    @GetMapping("/admin/{id}")
+    public ResponseEntity<DraftResponse> getDraftForAdmin(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Long id) {
+        authHelper.validateAdmin(authorization);
+        return ResponseEntity.ok(draftService.getDraftForAdmin(id));
     }
 
     @DeleteMapping("/admin/{id}")
     public ResponseEntity<Map<String, String>> deleteDraftForAdmin(
             @RequestHeader("Authorization") String authorization,
             @PathVariable Long id) {
-        authHelper.validateTeacherOrAdmin(authorization);
+        authHelper.validateAdmin(authorization);
         draftService.deleteDraftForAdmin(id);
         return ResponseEntity.ok(Map.of("message", "Đã xóa bài giảng thành công"));
     }
