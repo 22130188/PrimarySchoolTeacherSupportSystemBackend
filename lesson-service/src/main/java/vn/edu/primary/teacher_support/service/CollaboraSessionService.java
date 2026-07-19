@@ -494,13 +494,11 @@ private String resolveActionUrl(String extension, String actionName) {
             return actionUrlCache.get(cacheKey);
         }
 
-        if (discoveryUrl == null || discoveryUrl.isBlank()) {
-            throw new BusinessException("Chua cau hinh COLLABORA_DISCOVERY_URL");
-        }
+        String resolvedDiscovery = resolveDiscoveryUrl();
 
         try {
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(discoveryUrl.trim()))
+                    .uri(URI.create(resolvedDiscovery))
                     .timeout(Duration.ofSeconds(15))
                     .GET()
                     .build();
@@ -540,6 +538,17 @@ private String resolveActionUrl(String extension, String actionName) {
         } catch (Exception e) {
             throw new BusinessException("Khong the ket noi Collabora Online: " + e.getMessage());
         }
+    }
+
+    /**
+     * Empty env COLLABORA_DISCOVERY_URL=${...:-} becomes "" and overrides Spring defaults.
+     * Fall back to in-docker Collabora hostname.
+     */
+    private String resolveDiscoveryUrl() {
+        if (discoveryUrl != null && !discoveryUrl.isBlank()) {
+            return discoveryUrl.trim();
+        }
+        return "http://collabora:9980/hosting/discovery";
     }
 
     /** Discovery often returns http://collabora:9980/... — browser needs public https origin. */
