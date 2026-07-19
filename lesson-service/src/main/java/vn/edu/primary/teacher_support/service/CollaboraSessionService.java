@@ -74,6 +74,10 @@ public class CollaboraSessionService {
     @Value("${collabora.discovery-url:http://localhost:9980/hosting/discovery}")
     private String discoveryUrl;
 
+    /** Public origin for browser iframe (e.g. https://teachprimary.dev) — rewrites discovery urlsrc */
+    @Value("${collabora.public-url:http://localhost:9980}")
+    private String collaboraPublicUrl;
+
     @Value("${collabora.wopi-public-url:http://host.docker.internal:8087/wopi/files}")
     private String wopiPublicUrl;
 
@@ -490,17 +494,23 @@ private String resolveActionUrl(String extension, String actionName) {
             return actionUrlCache.get(cacheKey);
         }
 
+        if (discoveryUrl == null || discoveryUrl.isBlank()) {
+            throw new BusinessException("Chua cau hinh COLLABORA_DISCOVERY_URL");
+        }
+
         try {
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(discoveryUrl))
+                    .uri(URI.create(discoveryUrl.trim()))
+                    .timeout(Duration.ofSeconds(15))
                     .GET()
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != HttpStatus.OK.value()) {
-                throw new BusinessException("Khong the lay Collabora discovery");
+                throw new BusinessException("Khong the lay Collabora discovery (HTTP " + response.statusCode() + ")");
             }
 
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document doc = builder.parse(new ByteArrayInputStream(response.body().getBytes(StandardCharsets.UTF_8)));
             NodeList appNodes = doc.getElementsByTagName("app");
@@ -515,7 +525,7 @@ private String resolveActionUrl(String extension, String actionName) {
                     if (discoveredActionName != null && !discoveredActionName.isBlank()
                             && ext != null && !ext.isBlank()
                             && urlSrc != null && !urlSrc.isBlank()) {
-                        actionUrlCache.put(ext + ":" + discoveredActionName, urlSrc);
+                        actionUrlCache.put(ext + ":" + discoveredActionName, rewriteCollaboraPublicUrl(urlSrc));
                     }
                 }
             }
@@ -528,7 +538,37 @@ private String resolveActionUrl(String extension, String actionName) {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            throw new BusinessException("Khong the ket noi Collabora Online");
+            throw new BusinessException("Khong the ket noi Collabora Online: " + e.getMessage());
+        }
+    }
+
+    /** Discovery often returns http://collabora:9980/... — browser needs public https origin. */
+    private String rewriteCollaboraPublicUrl(String urlSrc) {
+        if (urlSrc == null || urlSrc.isBlank()) {
+            return urlSrc;
+        }
+        String publicBase = collaboraPublicUrl == null || collaboraPublicUrl.isBlank()
+                ? "http://localhost:9980"
+                : collaboraPublicUrl.trim().replaceAll("/+$", "");
+        try {
+            URI src = URI.create(urlSrc);
+            String path = src.getRawPath() == null ? "" : src.getRawPath();
+            String query = src.getRawQuery();
+            String fragment = src.getRawFragment();
+            String rebuilt = publicBase + path;
+            if (query != null && !query.isBlank()) {
+                rebuilt += "?" + query;
+            }
+            if (fragment != null && !fragment.isBlank()) {
+                rebuilt += "#" + fragment;
+            }
+            return rebuilt;
+        } catch (Exception e) {
+            return urlSrc
+                    .replace("http://collabora:9980", publicBase)
+                    .replace("https://collabora:9980", publicBase)
+                    .replace("http://localhost:9980", publicBase)
+                    .replace("https://localhost:9980", publicBase);
         }
     }
 
