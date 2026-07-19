@@ -91,6 +91,9 @@ public class CollaboraController {
         if (classroomId != null) {
             return ResponseEntity.ok(collaboraSessionService.getClassroomEditorSession(userId, classroomId, draftId));
         }
+        if ("ADMIN".equalsIgnoreCase(authHelper.extractRole(authorization))) {
+            return ResponseEntity.ok(collaboraSessionService.getAdminViewEditorSession(userId, draftId));
+        }
         return ResponseEntity.ok(collaboraSessionService.getEditorSession(userId, draftId));
     }
 

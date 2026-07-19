@@ -54,7 +54,8 @@ public class LessonTemplateController {
     ) {
         authHelper.validateTeacherOrAdmin(authorization);
         Long userId = authHelper.extractUserId(authorization);
-        return ResponseEntity.ok(collaboraSessionService.getTemplateEditorSession(userId, templateId));
+        boolean canEdit = "ADMIN".equalsIgnoreCase(authHelper.extractRole(authorization));
+        return ResponseEntity.ok(collaboraSessionService.getTemplateEditorSession(userId, templateId, canEdit));
     }
 
     @GetMapping("/admin")
