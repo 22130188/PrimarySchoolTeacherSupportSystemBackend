@@ -1,6 +1,6 @@
 package vn.edu.primary.teacher_support.service;
 
-import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import vn.edu.primary.teacher_support.dto.AdminDraftResponse;
 import vn.edu.primary.teacher_support.dto.DraftResponse;
@@ -8,23 +8,37 @@ import vn.edu.primary.teacher_support.dto.SaveDraftRequest;
 import vn.edu.primary.teacher_support.dto.UpdateDraftMetadataRequest;
 import vn.edu.primary.teacher_support.entity.LessonDraft;
 import vn.edu.primary.teacher_support.entity.enums.LessonDraftStatus;
+import vn.edu.primary.teacher_support.entity.enums.PublicVerificationStatus;
 import vn.edu.primary.teacher_support.exception.ResourceNotFoundException;
 import vn.edu.primary.teacher_support.repository.LessonDraftRepository;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
-@RequiredArgsConstructor
 public class LessonDraftService {
 
     private final LessonDraftRepository draftRepository;
     private final UserServiceClient userServiceClient;
+    private final LessonPublicService lessonPublicService;
+
+    public LessonDraftService(
+            LessonDraftRepository draftRepository,
+            UserServiceClient userServiceClient,
+            @Lazy LessonPublicService lessonPublicService
+    ) {
+        this.draftRepository = draftRepository;
+        this.userServiceClient = userServiceClient;
+        this.lessonPublicService = lessonPublicService;
+    }
 
     public DraftResponse saveDraft(Long userId, SaveDraftRequest request) {
         LessonDraft draft;
+        boolean contentChanged = false;
         if (request.getDraftId() != null) {
             draft = draftRepository.findByIdAndUserId(request.getDraftId(), userId)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bản nháp"));
+            contentChanged = !Objects.equals(draft.getCanvasJson(), request.getCanvasJson());
             draft.setTitle(request.getTitle());
             draft.setSubject(request.getSubject());
             draft.setGrade(request.getGrade());
@@ -45,6 +59,10 @@ public class LessonDraftService {
                     .build();
         }
         draft = draftRepository.save(draft);
+        if (contentChanged) {
+            lessonPublicService.onOwnerContentEdited(draft);
+            draft = draftRepository.findById(draft.getId()).orElse(draft);
+        }
         return toResponse(draft);
     }
 
@@ -79,22 +97,16 @@ public class LessonDraftService {
     }
 
     private DraftResponse toResponse(LessonDraft draft) {
-        return DraftResponse.builder()
-                .id(draft.getId())
-                .title(draft.getTitle())
-                .subject(draft.getSubject())
-                .grade(draft.getGrade())
-                .volume(draft.getVolume())
-                .book(draft.getBook())
-                .type(draft.getType())
-                .status(draft.getStatus())
+        return baseBuilder(draft)
                 .canvasJson(draft.getCanvasJson())
-                .createdAt(draft.getCreatedAt())
-                .updatedAt(draft.getUpdatedAt())
                 .build();
     }
 
     private DraftResponse toSummaryResponse(LessonDraft draft) {
+        return baseBuilder(draft).build();
+    }
+
+    private DraftResponse.DraftResponseBuilder baseBuilder(LessonDraft draft) {
         return DraftResponse.builder()
                 .id(draft.getId())
                 .title(draft.getTitle())
@@ -104,9 +116,17 @@ public class LessonDraftService {
                 .book(draft.getBook())
                 .type(draft.getType())
                 .status(draft.getStatus())
+                .isPublic(Boolean.TRUE.equals(draft.getIsPublic()))
+                .publicVerificationStatus(draft.getPublicVerificationStatus() != null
+                        ? draft.getPublicVerificationStatus()
+                        : PublicVerificationStatus.UNVERIFIED)
+                .publicPublishedAt(draft.getPublicPublishedAt())
+                .publicCopyCount(draft.getPublicCopyCount() != null ? draft.getPublicCopyCount() : 0)
+                .publicAverageRating(draft.getPublicAverageRating() != null ? draft.getPublicAverageRating() : 0.0)
+                .publicRatingCount(draft.getPublicRatingCount() != null ? draft.getPublicRatingCount() : 0)
+                .publicOpenReportCount(draft.getPublicOpenReportCount() != null ? draft.getPublicOpenReportCount() : 0)
                 .createdAt(draft.getCreatedAt())
-                .updatedAt(draft.getUpdatedAt())
-                .build();
+                .updatedAt(draft.getUpdatedAt());
     }
 
     public DraftResponse updateMetadata(Long id, Long userId, UpdateDraftMetadataRequest request) {
