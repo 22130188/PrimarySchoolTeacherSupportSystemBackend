@@ -3,8 +3,8 @@ package vn.edu.primary.teacher_support.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpEntity;
@@ -53,7 +53,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-@RequiredArgsConstructor
 public class CollaboraSessionService {
 
     private static final List<String> ALLOWED_TYPES = List.of("COLLABORA_DOCX", "COLLABORA_PPTX");
@@ -65,11 +64,30 @@ public class CollaboraSessionService {
     private final ClassroomServiceClient classroomServiceClient;
     private final LessonTemplateRepository templateRepository;
     private final SupabaseStorageService supabaseStorageService;
+    private final LessonPublicService lessonPublicService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final Map<String, String> actionUrlCache = new ConcurrentHashMap<>();
     private final Map<String, CollaboraFileSession> activeSessions = new ConcurrentHashMap<>();
     private final Map<String, CollaboraAsset> assets = new ConcurrentHashMap<>();
+
+    public CollaboraSessionService(
+            LessonDraftRepository draftRepository,
+            LessonClassroomShareRepository classroomShareRepository,
+            LessonShareRepository lessonShareRepository,
+            ClassroomServiceClient classroomServiceClient,
+            LessonTemplateRepository templateRepository,
+            SupabaseStorageService supabaseStorageService,
+            @Lazy LessonPublicService lessonPublicService
+    ) {
+        this.draftRepository = draftRepository;
+        this.classroomShareRepository = classroomShareRepository;
+        this.lessonShareRepository = lessonShareRepository;
+        this.classroomServiceClient = classroomServiceClient;
+        this.templateRepository = templateRepository;
+        this.supabaseStorageService = supabaseStorageService;
+        this.lessonPublicService = lessonPublicService;
+    }
 
     @Value("${collabora.discovery-url:http://localhost:9980/hosting/discovery}")
     private String discoveryUrl;
@@ -239,6 +257,19 @@ public class CollaboraSessionService {
     public CollaboraEditorSessionResponse getAdminViewEditorSession(Long userId, Long draftId) {
         LessonDraft draft = draftRepository.findById(draftId)
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay bai giang Collabora"));
+        if (!ALLOWED_TYPES.contains(draft.getType())) {
+            throw new BusinessException("Bai giang nay khong phai dinh dang Collabora");
+        }
+        return buildEditorSession(userId, draftId, draft, false, false);
+    }
+
+    /** Read-only Collabora session for a publicly shared teacher lesson. */
+    public CollaboraEditorSessionResponse getPublicEditorSession(Long userId, Long draftId) {
+        LessonDraft draft = draftRepository.findById(draftId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay bai giang Collabora"));
+        if (!Boolean.TRUE.equals(draft.getIsPublic())) {
+            throw new ForbiddenException("Bai giang nay khong con cong khai");
+        }
         if (!ALLOWED_TYPES.contains(draft.getType())) {
             throw new BusinessException("Bai giang nay khong phai dinh dang Collabora");
         }
@@ -445,6 +476,9 @@ public class CollaboraSessionService {
                     template.setUpdatedAt(java.time.LocalDateTime.now());
                     templateRepository.save(template);
                 });
+            }
+            if (session.getDraftId() != null) {
+                draftRepository.findById(session.getDraftId()).ifPresent(lessonPublicService::onOwnerContentEdited);
             }
         } catch (Exception e) {
             throw new BusinessException("Khong the luu file Collabora len Supabase");

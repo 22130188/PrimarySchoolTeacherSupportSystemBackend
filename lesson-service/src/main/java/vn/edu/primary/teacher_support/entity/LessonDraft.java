@@ -3,6 +3,7 @@ package vn.edu.primary.teacher_support.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import vn.edu.primary.teacher_support.entity.enums.LessonDraftStatus;
+import vn.edu.primary.teacher_support.entity.enums.PublicVerificationStatus;
 
 import java.time.LocalDateTime;
 
@@ -45,6 +46,35 @@ public class LessonDraft {
     @Column(columnDefinition = "LONGTEXT")
     private String canvasJson;
 
+    /** Visible to all teachers when true (students blocked at API). */
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean isPublic = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    @Builder.Default
+    private PublicVerificationStatus publicVerificationStatus = PublicVerificationStatus.UNVERIFIED;
+
+    @Column
+    private LocalDateTime publicPublishedAt;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer publicCopyCount = 0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Double publicAverageRating = 0.0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer publicRatingCount = 0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer publicOpenReportCount = 0;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -56,6 +86,12 @@ public class LessonDraft {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
         if (status == null) status = LessonDraftStatus.DRAFT;
+        if (isPublic == null) isPublic = false;
+        if (publicVerificationStatus == null) publicVerificationStatus = PublicVerificationStatus.UNVERIFIED;
+        if (publicCopyCount == null) publicCopyCount = 0;
+        if (publicAverageRating == null) publicAverageRating = 0.0;
+        if (publicRatingCount == null) publicRatingCount = 0;
+        if (publicOpenReportCount == null) publicOpenReportCount = 0;
     }
 
     @PreUpdate
