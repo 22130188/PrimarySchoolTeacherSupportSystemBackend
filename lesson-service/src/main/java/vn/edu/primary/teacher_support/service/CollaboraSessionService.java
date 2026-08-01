@@ -116,7 +116,12 @@ public class CollaboraSessionService {
             draft = draftRepository.save(draft);
             return toResponse(draft);
         } catch (Exception e) {
-            throw new BusinessException("Khong the tao bai giang Collabora tren Supabase: " + e.getMessage());
+            String errorDetail = e.getClass().getSimpleName() + ": " + e.getMessage();
+            if (e instanceof NullPointerException) {
+                errorDetail = "NullPointerException — có thể supabaseUrl/supabaseKey chưa được cấu hình. " +
+                        "StackTrace: " + (e.getStackTrace().length > 0 ? e.getStackTrace()[0].toString() : "unknown");
+            }
+            throw new BusinessException("Khong the tao bai giang Collabora tren Supabase: " + errorDetail);
         }
     }
 
