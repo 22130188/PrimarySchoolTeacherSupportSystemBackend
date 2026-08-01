@@ -16,7 +16,7 @@ import java.util.List;
 public class ClassroomServiceClient {
 
     private final RestTemplate restTemplate;
-    private static final String CLASSROOM_SERVICE_URL = "http://classroom-service";
+    private static final String CLASSROOM_SERVICE_URL = "http://classroom-service:8085";
 
     public Optional<Map<String, Object>> findById(Long classroomId) {
         try {
