@@ -2,19 +2,18 @@ package vn.edu.primary.teacher_support.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-@Service
-@RequiredArgsConstructor
+@Component
 @Slf4j
 public class ActionLogClient {
-    private static final String ACTION_LOG_URL = "http://user-service/api/internal/action-logs";
+    private static final String ACTION_LOG_URL = "http://user-service:8082/api/internal/action-logs";
 
-    private final RestTemplate restTemplate;
+    private final RestTemplate restTemplate = new RestTemplate();
 
     public void log(String username, String action, String module, String resourceId,
                     String httpMethod, String endpoint, String severity, String status, String description) {

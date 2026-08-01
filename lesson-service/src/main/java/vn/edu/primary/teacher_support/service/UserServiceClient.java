@@ -11,11 +11,10 @@ import vn.edu.primary.teacher_support.dto.UserDto;
 import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class UserServiceClient {
 
-    private final RestTemplate restTemplate;
+    private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${user.service.url:http://user-service:8082}")
     private String userServiceUrl;

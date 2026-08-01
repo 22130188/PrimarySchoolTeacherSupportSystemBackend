@@ -10,11 +10,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Service
-@RequiredArgsConstructor
+@Component
 @Slf4j
 public class NotificationClient {
-    private final RestTemplate restTemplate;
+    private final RestTemplate restTemplate = new RestTemplate();
+    private final String notificationServiceUrl = "http://user-service:8082/api/internal/users/notifications";
 
     public void notifyUser(Long targetId, Long actorId, String actorName, String type, String title,
                            String message, String actionUrl, String resourceType, Object resourceId) {

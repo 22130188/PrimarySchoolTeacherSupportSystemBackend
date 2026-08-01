@@ -11,11 +11,10 @@ import java.util.Optional;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ClassroomServiceClient {
 
-    private final RestTemplate restTemplate;
+    private final RestTemplate restTemplate = new RestTemplate();
     private static final String CLASSROOM_SERVICE_URL = "http://classroom-service:8085";
 
     public Optional<Map<String, Object>> findById(Long classroomId) {
