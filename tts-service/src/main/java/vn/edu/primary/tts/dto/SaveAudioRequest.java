@@ -22,4 +22,5 @@ public class SaveAudioRequest {
     private String userName;
     private String audioName;
     private String subject;
+    private String grade;
 }

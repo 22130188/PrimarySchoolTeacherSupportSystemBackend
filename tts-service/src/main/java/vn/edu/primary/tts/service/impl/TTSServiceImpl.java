@@ -105,6 +105,7 @@ public class TTSServiceImpl implements TTSService {
                 .userName(request.getUserName())
                 .audioName(request.getAudioName())
                 .subject(request.getSubject())
+                .grade(request.getGrade())
                 .build();
 
         AudioRecord saved = audioRecordRepository.save(record);
