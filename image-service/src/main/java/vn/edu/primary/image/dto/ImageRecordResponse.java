@@ -18,6 +18,7 @@ public class ImageRecordResponse {
     private Long userId;
     private String userName;
     private String subject;
+    private String grade;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -29,6 +30,7 @@ public class ImageRecordResponse {
                 .userId(entity.getUserId())
                 .userName(entity.getUserName())
                 .subject(entity.getSubject())
+                .grade(entity.getGrade())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

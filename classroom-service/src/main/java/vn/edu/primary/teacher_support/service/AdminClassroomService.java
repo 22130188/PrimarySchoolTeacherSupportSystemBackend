@@ -67,6 +67,13 @@ public class AdminClassroomService {
         classroom.setName(request.getName().trim());
         classroom.setDescription(request.getDescription());
         classroom.setGradeLevel(request.getGradeLevel());
+        if (request.getClassDisplayName() != null || request.getClassGroup() != null) {
+            classroom.setClassGroup(request.getClassGroup());
+            classroom.setClassCategoryId(request.getClassCategoryId());
+            classroom.setGroupCategoryId(request.getGroupCategoryId());
+            classroom.setClassDisplayName(buildClassDisplayName(
+                    request.getGradeLevel(), request.getClassGroup(), request.getClassDisplayName()));
+        }
         classroom.setSubject(request.getSubject());
         classroom = classroomRepository.save(classroom);
 
@@ -247,6 +254,10 @@ public class AdminClassroomService {
                 .studentCount(studentCount)
                 .pendingInvitationCount(pendingCount)
                 .gradeLevel(classroom.getGradeLevel())
+                .classGroup(classroom.getClassGroup())
+                .classCategoryId(classroom.getClassCategoryId())
+                .groupCategoryId(classroom.getGroupCategoryId())
+                .classDisplayName(resolveClassDisplayName(classroom))
                 .subject(classroom.getSubject())
                 .createdBy(classroom.getCreatedBy())
                 .isDeleted(classroom.getIsDeleted())
@@ -256,5 +267,19 @@ public class AdminClassroomService {
                 .updatedAt(classroom.getUpdatedAt())
                 .deletedAt(classroom.getDeletedAt())
                 .build();
+    }
+
+    private String buildClassDisplayName(Integer gradeLevel, String classGroup, String requestedDisplayName) {
+        if (gradeLevel != null && classGroup != null && !classGroup.isBlank()) {
+            return "Lớp " + gradeLevel + classGroup.trim().toUpperCase();
+        }
+        return requestedDisplayName == null || requestedDisplayName.isBlank() ? null : requestedDisplayName.trim();
+    }
+
+    private String resolveClassDisplayName(Classroom classroom) {
+        if (classroom.getClassDisplayName() != null && !classroom.getClassDisplayName().isBlank()) {
+            return classroom.getClassDisplayName();
+        }
+        return classroom.getGradeLevel() == null ? null : "Lớp " + classroom.getGradeLevel();
     }
 }

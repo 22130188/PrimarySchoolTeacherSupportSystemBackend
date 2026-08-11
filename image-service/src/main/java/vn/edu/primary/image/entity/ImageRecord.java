@@ -34,6 +34,9 @@ public class ImageRecord {
     @Column(length = 255)
     private String subject;
 
+    @Column(length = 50)
+    private String grade;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
