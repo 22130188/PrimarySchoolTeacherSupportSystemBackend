@@ -21,6 +21,10 @@ public class AdminClassroomResponse {
     private int studentCount;
     private int pendingInvitationCount;
     private Integer gradeLevel;
+    private String classGroup;
+    private Long classCategoryId;
+    private Long groupCategoryId;
+    private String classDisplayName;
     private String subject;
     private Long createdBy;
     private Boolean isDeleted;

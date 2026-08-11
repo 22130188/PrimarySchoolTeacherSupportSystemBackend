@@ -212,7 +212,7 @@ public class CollaboraSessionService {
 
             LessonDraft draft = LessonDraft.builder()
                     .userId(userId)
-                    .title(stripExtension(fileName, metadata.extension()))
+                    .title(newTitle)
                     .subject(original.getSubject())
                     .grade(original.getGrade())
                     .volume(original.getVolume())

@@ -22,4 +22,5 @@ public class SaveImageRequest {
 
     private String userName;
     private String subject;
+    private String grade;
 }

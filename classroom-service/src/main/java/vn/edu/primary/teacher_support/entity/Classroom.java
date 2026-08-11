@@ -65,6 +65,18 @@ public class Classroom {
     @Column(name = "grade_level")
     private Integer gradeLevel;
 
+    @Column(name = "class_group", length = 20)
+    private String classGroup;
+
+    @Column(name = "class_category_id")
+    private Long classCategoryId;
+
+    @Column(name = "group_category_id")
+    private Long groupCategoryId;
+
+    @Column(name = "class_display_name", length = 100)
+    private String classDisplayName;
+
     @Column(name = "subject", length = 50)
     private String subject;
 

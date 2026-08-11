@@ -18,6 +18,7 @@ public class AudioRecordResponse {
     private String userName;
     private String audioName;
     private String subject;
+    private String grade;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -30,6 +31,7 @@ public class AudioRecordResponse {
                 .userName(record.getUserName())
                 .audioName(record.getAudioName())
                 .subject(record.getSubject())
+                .grade(record.getGrade())
                 .createdAt(record.getCreatedAt())
                 .updatedAt(record.getUpdatedAt())
                 .build();

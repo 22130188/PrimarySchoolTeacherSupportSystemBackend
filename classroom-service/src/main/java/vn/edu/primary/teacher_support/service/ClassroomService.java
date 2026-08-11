@@ -50,6 +50,10 @@ public class ClassroomService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .gradeLevel(request.getGradeLevel())
+                .classGroup(request.getClassGroup())
+                .classCategoryId(request.getClassCategoryId())
+                .groupCategoryId(request.getGroupCategoryId())
+                .classDisplayName(buildClassDisplayName(request.getGradeLevel(), request.getClassGroup(), request.getClassDisplayName()))
                 .subject(request.getSubject())
                 .teacherId(teacherId)
                 .createdBy(teacherId)
@@ -80,6 +84,13 @@ public class ClassroomService {
         classroom.setName(request.getName().trim());
         classroom.setDescription(request.getDescription());
         classroom.setGradeLevel(request.getGradeLevel());
+        if (request.getClassDisplayName() != null || request.getClassGroup() != null) {
+            classroom.setClassGroup(request.getClassGroup());
+            classroom.setClassCategoryId(request.getClassCategoryId());
+            classroom.setGroupCategoryId(request.getGroupCategoryId());
+            classroom.setClassDisplayName(buildClassDisplayName(
+                    request.getGradeLevel(), request.getClassGroup(), request.getClassDisplayName()));
+        }
         classroom.setSubject(request.getSubject());
         classroom = classroomRepository.save(classroom);
 
@@ -439,11 +450,29 @@ public class ClassroomService {
                 .inviteLink(inviteLink)
                 .studentCount(studentCount)
                 .gradeLevel(classroom.getGradeLevel())
+                .classGroup(classroom.getClassGroup())
+                .classCategoryId(classroom.getClassCategoryId())
+                .groupCategoryId(classroom.getGroupCategoryId())
+                .classDisplayName(resolveClassDisplayName(classroom))
                 .subject(classroom.getSubject())
                 .status(effectiveStatus(classroom).name())
                 .createdAt(classroom.getCreatedAt())
                 .updatedAt(classroom.getUpdatedAt())
                 .build();
+    }
+
+    private String buildClassDisplayName(Integer gradeLevel, String classGroup, String requestedDisplayName) {
+        if (gradeLevel != null && classGroup != null && !classGroup.isBlank()) {
+            return "Lớp " + gradeLevel + classGroup.trim().toUpperCase(Locale.ROOT);
+        }
+        return requestedDisplayName == null || requestedDisplayName.isBlank() ? null : requestedDisplayName.trim();
+    }
+
+    private String resolveClassDisplayName(Classroom classroom) {
+        if (classroom.getClassDisplayName() != null && !classroom.getClassDisplayName().isBlank()) {
+            return classroom.getClassDisplayName();
+        }
+        return classroom.getGradeLevel() == null ? null : "Lớp " + classroom.getGradeLevel();
     }
 
     private ClassroomStatus effectiveStatus(Classroom classroom) {

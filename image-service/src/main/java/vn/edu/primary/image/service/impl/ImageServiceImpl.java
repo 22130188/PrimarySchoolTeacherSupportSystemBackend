@@ -81,6 +81,7 @@ public class ImageServiceImpl implements ImageService {
                 .userId(request.getUserId())
                 .userName(request.getUserName())
                 .subject(request.getSubject())
+                .grade(request.getGrade())
                 .build();
 
         ImageRecord saved = imageRecordRepository.save(record);
