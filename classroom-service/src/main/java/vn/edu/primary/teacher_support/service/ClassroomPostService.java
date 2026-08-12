@@ -28,6 +28,7 @@ import vn.edu.primary.teacher_support.repository.ClassroomPostRepository;
 import vn.edu.primary.teacher_support.repository.PostCommentRepository;
 import vn.edu.primary.teacher_support.entity.PostComment;
 import vn.edu.primary.teacher_support.dto.PostCommentResponse;
+import java.time.LocalDateTime;
 import vn.edu.primary.teacher_support.dto.CreateCommentRequest;
 
 import java.util.Collections;
@@ -445,7 +446,74 @@ public class ClassroomPostService {
         postCommentRepository.delete(comment);
     }
 
+    /**
+     * Validates whether a student may start or submit a test that was assigned
+     * through a classroom post. A test with no classroom post remains usable by
+     * the existing standalone-test flow.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getTestAvailability(Long testId, Long requesterId, Long classroomPostId) {
+        List<ClassroomPost> linkedPosts;
+        if (classroomPostId != null) {
+            linkedPosts = classroomPostRepository.findById(classroomPostId)
+                    .filter(post -> testId.equals(post.getReferenceTestId()))
+                    .filter(post -> post.getPostType() == PostType.TEST || post.getPostType() == PostType.ASSIGNMENT)
+                    .map(List::of)
+                    .orElse(Collections.emptyList());
+            if (linkedPosts.isEmpty()) {
+                return Map.of("enforced", true, "available", false,
+                        "message", "\u0042\u00e0i \u0111\u0103ng l\u1edbp h\u1ecdc kh\u00f4ng h\u1ee3p l\u1ec7.");
+            }
+        } else {
+            linkedPosts = classroomPostRepository.findByReferenceTestId(testId).stream()
+                    .filter(post -> post.getPostType() == PostType.TEST || post.getPostType() == PostType.ASSIGNMENT)
+                    .collect(Collectors.toList());
+            if (linkedPosts.isEmpty()) {
+                return Map.of("enforced", false, "available", true);
+            }
+        }
+
+        List<ClassroomPost> accessiblePosts = linkedPosts.stream()
+                .filter(post -> canAccessClassroomPost(post, requesterId))
+                .collect(Collectors.toList());
+        if (accessiblePosts.isEmpty()) {
+            return Map.of("enforced", true, "available", false,
+                    "message", "\u0042\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n l\u00e0m b\u00e0i n\u00e0y trong l\u1edbp h\u1ecdc.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        ClassroomPost availablePost = accessiblePosts.stream()
+                .filter(post -> post.getStartAt() == null || !now.isBefore(post.getStartAt()))
+                .findFirst()
+                .orElse(null);
+        if (availablePost != null) {
+            return Map.of("enforced", true, "available", true,
+                    "classroomPostId", availablePost.getId());
+        }
+
+        LocalDateTime opensAt = accessiblePosts.stream()
+                .map(ClassroomPost::getStartAt)
+                .filter(java.util.Objects::nonNull)
+                .min(LocalDateTime::compareTo)
+                .orElse(null);
+        return Map.of("enforced", true, "available", false,
+                "startAt", opensAt == null ? "" : opensAt.toString(),
+                "message", "\u0043\u0068\u01b0a t\u1edbi th\u1eddi gian l\u00e0m b\u00e0i. Vui l\u00f2ng quay l\u1ea1i sau.");
+    }
+
+    private boolean canAccessClassroomPost(ClassroomPost post, Long requesterId) {
+        try {
+            Classroom classroom = classroomService.getActiveClassroom(post.getClassroom().getId());
+            return classroom.getTeacherId().equals(requesterId)
+                    || classroomMemberRepository.existsByClassroomIdAndStudentIdAndStatus(
+                            classroom.getId(), requesterId, MemberStatus.ACTIVE);
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
     private void validateCanView(Classroom classroom, Long userId) {
+
         if (classroom.getTeacherId().equals(userId)) {
             return;
         }

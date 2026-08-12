@@ -8,6 +8,8 @@ import vn.edu.primary.teacher_support.dto.ResolveAfterRegisterRequest;
 import vn.edu.primary.teacher_support.entity.Classroom;
 import vn.edu.primary.teacher_support.service.ClassroomService;
 import vn.edu.primary.teacher_support.service.InvitationService;
+import vn.edu.primary.teacher_support.service.AuthHelper;
+import vn.edu.primary.teacher_support.service.ClassroomPostService;
 
 import java.util.Map;
 import java.util.List;
@@ -19,6 +21,8 @@ public class InternalClassroomController {
 
     private final InvitationService invitationService;
     private final ClassroomService classroomService;
+    private final ClassroomPostService classroomPostService;
+    private final AuthHelper authHelper;
 
     @GetMapping("/invitations/by-token/{token}")
     public ResponseEntity<InvitationResponse> getByToken(@PathVariable String token) {
@@ -102,6 +106,15 @@ public class InternalClassroomController {
         }
     }
 
+    @GetMapping("/classrooms/tests/{testId}/availability")
+    public ResponseEntity<Map<String, Object>> getTestAvailability(
+            @PathVariable Long testId,
+            @RequestParam(value = "classroomPostId", required = false) Long classroomPostId,
+            @RequestHeader("Authorization") String authorization) {
+        Long userId = authHelper.extractUserId(authorization);
+        return ResponseEntity.ok(
+                classroomPostService.getTestAvailability(testId, userId, classroomPostId));
+    }
     @GetMapping("/classrooms/{id}/notification-recipients")
     public ResponseEntity<Map<String, Object>> getNotificationRecipients(@PathVariable Long id) {
         Classroom classroom = classroomService.getActiveClassroom(id);

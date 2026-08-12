@@ -58,6 +58,11 @@ speech:
     api:
       url: ${SPEECH_RECOGNITION_API_URL:http://localhost:8086/api/pronunciation}
 
+# Classroom post schedule validation for students starting/submitting work.
+classroom:
+  service:
+    url: ${CLASSROOM_SERVICE_URL:http://classroom-service:8085}
+
 # Cloudinary Configuration (set via environment variables in production)
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME:dlyhvdonu}

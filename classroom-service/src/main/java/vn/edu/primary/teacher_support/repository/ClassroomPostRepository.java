@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ClassroomPostRepository extends JpaRepository<ClassroomPost, Long> {
+    List<ClassroomPost> findByReferenceTestId(Long referenceTestId);
+
 
     List<ClassroomPost> findByClassroomIdOrderByCreatedAtDesc(Long classroomId, Pageable pageable);
 
@@ -16,6 +18,7 @@ public interface ClassroomPostRepository extends JpaRepository<ClassroomPost, Lo
 
     List<ClassroomPost> findByClassroomIdAndPostTypeAndReferenceTestId(
             Long classroomId,
+
             PostType postType,
             Long referenceTestId
     );

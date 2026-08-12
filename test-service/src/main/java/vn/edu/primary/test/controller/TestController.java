@@ -82,6 +82,9 @@ public class TestController {
     @Value("${user.service.url:http://localhost:8082/api}")
     private String userServiceUrl;
 
+    @Value("${classroom.service.url:http://classroom-service:8085}")
+    private String classroomServiceUrl;
+
     @PostMapping("/api/tests/health")
     public ResponseEntity<ApiResponse<Map<String, Object>>> testPostHealth(@RequestBody(required = false) Map<String, Object> body) {
         Map<String, Object> result = new HashMap<>();
@@ -345,6 +348,17 @@ public class TestController {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN)
                             .body(ApiResponse.error("Giáo viên không thể nộp bài kiểm tra. Chỉ xem lịch sử học sinh."));
                 }
+                String classroomScheduleMessage = getUnavailableClassroomPostMessage(testId, payload, token);
+                if (classroomScheduleMessage != null) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(ApiResponse.error(classroomScheduleMessage));
+                }
+                String testScheduleMessage = getUnavailableTestStartMessage(testId);
+                if (testScheduleMessage != null) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(ApiResponse.error(testScheduleMessage));
+                }
+
 
                 if (resolvedUserId != null) {
                     var list = testAttemptRepository.findByTest_IdAndUserIdOrderByCreatedAtDesc(testId, resolvedUserId);
@@ -875,6 +889,17 @@ public class TestController {
                         .body(ApiResponse.error("Giáo viên không thể làm bài kiểm tra. Chỉ xem lịch sử học sinh."));
             }
 
+            String classroomScheduleMessage = getUnavailableClassroomPostMessage(testId, payload, token);
+            if (classroomScheduleMessage != null) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.error(classroomScheduleMessage));
+            }
+            String testScheduleMessage = getUnavailableTestStartMessage(testId);
+            if (testScheduleMessage != null) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.error(testScheduleMessage));
+            }
+
             var testOpt = testRepository.findById(testId);
             if (testOpt.isPresent()) {
                 var test = testOpt.get();
@@ -1327,7 +1352,59 @@ public class TestController {
         }
     }
 
+    private String getUnavailableClassroomPostMessage(Long testId, Map<String, Object> payload, String authorization) {
+        Long classroomPostId = extractLong(payload == null ? null : payload.get("classroomPostId"));
+        String url = classroomServiceUrl.replaceAll("/+$", "")
+                + "/api/internal/classrooms/tests/" + testId + "/availability";
+        if (classroomPostId != null) {
+            url += "?classroomPostId=" + classroomPostId;
+        }
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            if (authorization != null && !authorization.isBlank()) {
+                headers.set(HttpHeaders.AUTHORIZATION, authorization);
+            }
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+            Map<?, ?> body = response.getBody();
+            if (body != null && !Boolean.TRUE.equals(body.get("available"))) {
+                Object message = body.get("message");
+                return message == null
+                        ? "\u0042\u00e0i ch\u01b0a t\u1edbi th\u1eddi gian m\u1edf. Vui l\u00f2ng quay l\u1ea1i sau."
+                        : String.valueOf(message);
+            }
+            return null;
+        } catch (RestClientException exception) {
+            log.warn("Cannot verify classroom schedule for test {}", testId, exception);
+            return "\u004b\u0068\u00f4ng th\u1ec3 x\u00e1c minh th\u1eddi gian m\u1edf b\u00e0i. Vui l\u00f2ng th\u1eed l\u1ea1i sau.";
+        }
+    }
+
+    private String getUnavailableTestStartMessage(Long testId) {
+        return testRepository.findById(testId)
+                .filter(test -> test.getStartAt() != null && LocalDateTime.now().isBefore(test.getStartAt()))
+                .map(test -> "\u0042\u00e0i ch\u01b0a t\u1edbi th\u1eddi gian m\u1edf. Vui l\u00f2ng quay l\u1ea1i sau.")
+                .orElse(null);
+    }
+
+    private Long extractLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value != null) {
+            try {
+                return Long.parseLong(String.valueOf(value));
+            } catch (NumberFormatException ignored) {
+                // Invalid values are treated as absent; the classroom endpoint
+                // still validates every scheduled classroom post for this test.
+            }
+        }
+        return null;
+    }
+
     private static class UserInfo {
+
         private Long id;
         private String username;
         private Integer roleId;
