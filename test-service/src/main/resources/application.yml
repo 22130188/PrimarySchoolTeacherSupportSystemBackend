@@ -48,7 +48,13 @@ jwt:
 # Python API for DOCX generation
 python:
   api:
-    url: http://localhost:8001
+    url: ${PYTHON_API_URL:http://localhost:8001}
+
+# Dịch vụ chấm phát âm; test-service sẽ dự phòng gọi FastAPI khi service trung gian tạm ngừng.
+speech:
+  recognition:
+    api:
+      url: ${SPEECH_RECOGNITION_API_URL:http://localhost:8086/api/pronunciation}
 
 # Cloudinary Configuration (set via environment variables in production)
 cloudinary:

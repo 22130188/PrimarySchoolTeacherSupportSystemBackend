@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import vn.edu.primary.teacher_support.entity.LessonDraft;
+import vn.edu.primary.teacher_support.entity.enums.LessonDraftStatus;
 import vn.edu.primary.teacher_support.entity.enums.PublicVerificationStatus;
 
 import java.util.List;
@@ -16,7 +17,7 @@ public interface LessonDraftRepository extends JpaRepository<LessonDraft, Long> 
 
     List<LessonDraft> findByIsPublicTrueOrderByPublicPublishedAtDesc();
 
-    @Query("SELECT d FROM LessonDraft d WHERE d.isPublic = true " +
+    @Query("SELECT d FROM LessonDraft d WHERE d.isPublic = true AND d.status = 'PUBLISHED' " +
            "AND (:subject IS NULL OR d.subject = :subject) " +
            "AND (:grade IS NULL OR d.grade = :grade) " +
            "AND (:type IS NULL OR d.type = :type) " +
