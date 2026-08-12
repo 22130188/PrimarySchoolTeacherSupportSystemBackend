@@ -9,6 +9,7 @@ import vn.edu.primary.teacher_support.dto.UpdateDraftMetadataRequest;
 import vn.edu.primary.teacher_support.entity.LessonDraft;
 import vn.edu.primary.teacher_support.entity.enums.LessonDraftStatus;
 import vn.edu.primary.teacher_support.entity.enums.PublicVerificationStatus;
+import vn.edu.primary.teacher_support.exception.BusinessException;
 import vn.edu.primary.teacher_support.exception.ResourceNotFoundException;
 import vn.edu.primary.teacher_support.repository.LessonDraftRepository;
 
@@ -137,6 +138,9 @@ public class LessonDraftService {
         draft.setGrade(request.getGrade());
         draft.setVolume(blankToNull(request.getVolume()));
         draft.setBook(blankToNull(request.getBook()));
+        if (request.getStatus() != null) {
+            applyStatus(draft, request.getStatus());
+        }
         draft = draftRepository.save(draft);
         return toSummaryResponse(draft);
     }
@@ -179,8 +183,19 @@ public class LessonDraftService {
     public DraftResponse updateStatus(Long id, Long userId, LessonDraftStatus status) {
         LessonDraft draft = draftRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bản nháp với id: " + id));
-        draft.setStatus(status);
+        applyStatus(draft, status);
         draft = draftRepository.save(draft);
         return toSummaryResponse(draft);
+    }
+
+    private void applyStatus(LessonDraft draft, LessonDraftStatus status) {
+        if (status != LessonDraftStatus.DRAFT && status != LessonDraftStatus.PUBLISHED) {
+            throw new BusinessException("Bài giảng chỉ có thể ở trạng thái Bản nháp hoặc Bản hoàn chỉnh");
+        }
+        draft.setStatus(status);
+        if (status == LessonDraftStatus.DRAFT) {
+            draft.setIsPublic(false);
+            draft.setPublicVerificationStatus(PublicVerificationStatus.UNVERIFIED);
+        }
     }
 }

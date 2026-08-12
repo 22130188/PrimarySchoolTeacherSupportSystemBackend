@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import vn.edu.primary.teacher_support.entity.enums.LessonDraftStatus;
 
 @Getter
 @Setter
@@ -22,4 +23,6 @@ public class UpdateDraftMetadataRequest {
     private String volume;
 
     private String book;
+
+    private LessonDraftStatus status;
 }

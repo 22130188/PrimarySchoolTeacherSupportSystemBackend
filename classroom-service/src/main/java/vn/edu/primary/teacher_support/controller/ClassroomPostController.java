@@ -38,7 +38,7 @@ public class ClassroomPostController {
     ) {
         Long userId = authHelper.extractUserId(authorization);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(classroomPostService.createPost(classroomId, userId, request));
+                .body(classroomPostService.createPost(classroomId, userId, request, authorization));
     }
 
     @PatchMapping("/{postId}")
@@ -49,7 +49,7 @@ public class ClassroomPostController {
             @Valid @RequestBody CreateClassroomPostRequest request
     ) {
         Long userId = authHelper.extractUserId(authorization);
-        return ResponseEntity.ok(classroomPostService.updatePost(classroomId, postId, userId, request));
+        return ResponseEntity.ok(classroomPostService.updatePost(classroomId, postId, userId, request, authorization));
     }
 
     @DeleteMapping("/{postId}")

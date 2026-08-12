@@ -52,6 +52,12 @@ python:
   api:
     url: ${PYTHON_API_URL:http://localhost:8001}
 
+# Dịch vụ chấm phát âm; test-service sẽ dự phòng gọi FastAPI khi service trung gian tạm ngừng.
+speech:
+  recognition:
+    api:
+      url: ${SPEECH_RECOGNITION_API_URL:http://localhost:8086/api/pronunciation}
+
 # Cloudinary Configuration (set via environment variables in production)
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME:dlyhvdonu}
