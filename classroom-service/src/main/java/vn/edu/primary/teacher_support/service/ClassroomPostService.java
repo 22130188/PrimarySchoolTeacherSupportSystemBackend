@@ -2,8 +2,14 @@ package vn.edu.primary.teacher_support.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
 import vn.edu.primary.teacher_support.dto.ClassroomPostResponse;
 import vn.edu.primary.teacher_support.dto.CreateClassroomPostRequest;
 import vn.edu.primary.teacher_support.dto.UserDto;
@@ -42,6 +48,7 @@ public class ClassroomPostService {
     private final PostCommentRepository postCommentRepository;
     private final NotificationClient notificationClient;
     private final ActionLogClient actionLogClient;
+    private final RestTemplate restTemplate;
 
     @Transactional(readOnly = true)
     public List<ClassroomPostResponse> getPosts(Long classroomId, Long requesterId, int limit) {
@@ -68,16 +75,23 @@ public class ClassroomPostService {
     }
 
     @Transactional
-    public ClassroomPostResponse createPost(Long classroomId, Long authorId, CreateClassroomPostRequest request) {
+    public ClassroomPostResponse createPost(
+            Long classroomId,
+            Long authorId,
+            CreateClassroomPostRequest request,
+            String authorization
+    ) {
         Classroom classroom = classroomService.requireWritableClassroom(classroomId);
         validateCanView(classroom, authorId);
+        validateTeacherCanAssign(classroom, authorId, request.getPostType());
+        validateReferencedTestIsEligible(classroomId, authorId, request, null, authorization);
 
         String content = request.getContent() == null ? "" : request.getContent().trim();
         List<vn.edu.primary.teacher_support.dto.DriveAttachmentRequest> attachmentRequests =
                 request.getAttachments() == null ? Collections.emptyList() : request.getAttachments();
 
-        if (content.isBlank() && attachmentRequests.isEmpty()) {
-            throw new BusinessException("Bài đăng phải có nội dung hoặc tệp đính kèm");
+        if (content.isBlank() && attachmentRequests.isEmpty() && request.getReferenceTestId() == null) {
+            throw new BusinessException("Bài đăng phải có nội dung, bài đã chọn hoặc tệp đính kèm");
         }
 
         if (attachmentRequests.size() > MAX_ATTACHMENTS) {
@@ -128,7 +142,13 @@ public class ClassroomPostService {
     }
 
     @Transactional
-    public ClassroomPostResponse updatePost(Long classroomId, Long postId, Long requesterId, CreateClassroomPostRequest request) {
+    public ClassroomPostResponse updatePost(
+            Long classroomId,
+            Long postId,
+            Long requesterId,
+            CreateClassroomPostRequest request,
+            String authorization
+    ) {
         Classroom classroom = classroomService.requireWritableClassroom(classroomId);
         validateCanView(classroom, requesterId);
 
@@ -140,6 +160,8 @@ public class ClassroomPostService {
         if (!isClassTeacher && !isAuthor) {
             throw new ForbiddenException("Bạn không có quyền cập nhật bài đăng này");
         }
+        validateTeacherCanAssign(classroom, requesterId, request.getPostType());
+        validateReferencedTestIsEligible(classroomId, requesterId, request, postId, authorization);
 
         String content = request.getContent() == null ? "" : request.getContent().trim();
         List<vn.edu.primary.teacher_support.dto.DriveAttachmentRequest> attachmentRequests =
@@ -187,6 +209,74 @@ public class ClassroomPostService {
                 .orElse(Collections.emptyMap());
 
         return toResponse(saved, authors, requesterId, classroom.getTeacherId());
+    }
+
+    private void validateReferencedTestIsEligible(
+            Long classroomId,
+            Long requesterId,
+            CreateClassroomPostRequest request,
+            Long currentPostId,
+            String authorization
+    ) {
+        PostType postType = request.getPostType();
+        Long referenceTestId = request.getReferenceTestId();
+        if (postType != PostType.TEST && postType != PostType.ASSIGNMENT) {
+            return;
+        }
+        String label = postType == PostType.TEST ? "Bài kiểm tra" : "Bài tập";
+        if (referenceTestId == null) {
+            throw new BusinessException("Vui lòng chọn " + label.toLowerCase() + " đã hoàn thành để giao cho lớp.");
+        }
+
+        boolean duplicated = classroomPostRepository
+                .findByClassroomIdAndPostTypeAndReferenceTestId(classroomId, postType, referenceTestId)
+                .stream()
+                .anyMatch(existing -> currentPostId == null || !existing.getId().equals(currentPostId));
+        if (duplicated) {
+            throw new BusinessException(label + " này đã được đăng trong lớp. Vui lòng chọn bài khác.");
+        }
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set(HttpHeaders.AUTHORIZATION, authorization);
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    "http://test-service/api/tests/" + referenceTestId,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    Map.class
+            );
+            Object responseData = response.getBody() == null ? null : response.getBody().get("data");
+            if (!(responseData instanceof Map<?, ?> testData)) {
+                throw new BusinessException("Không tìm thấy bài đã chọn.");
+            }
+            String status = String.valueOf(testData.get("status"));
+            String testType = String.valueOf(testData.get("testType"));
+            String requiredType = postType == PostType.TEST ? "EXAM" : "EXERCISE";
+            Object createdByValue = testData.get("createdBy");
+            Long createdBy = createdByValue instanceof Number
+                    ? ((Number) createdByValue).longValue()
+                    : null;
+            if (createdBy == null || !createdBy.equals(requesterId)) {
+                throw new BusinessException("Bạn chỉ có thể giao bài do chính mình tạo.");
+            }
+            if (!"PUBLISHED".equalsIgnoreCase(status)) {
+                throw new BusinessException(label + " chưa ở trạng thái Hoàn thành nên chưa thể giao cho lớp.");
+            }
+            if (!requiredType.equalsIgnoreCase(testType)) {
+                throw new BusinessException("Loại bài đã chọn không phù hợp với mục đang đăng.");
+            }
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RestClientException exception) {
+            throw new BusinessException("Không thể xác minh bài đã chọn. Vui lòng thử lại sau.");
+        }
+    }
+
+    private void validateTeacherCanAssign(Classroom classroom, Long requesterId, PostType postType) {
+        if ((postType == PostType.TEST || postType == PostType.ASSIGNMENT)
+                && !classroom.getTeacherId().equals(requesterId)) {
+            throw new ForbiddenException("Chỉ giáo viên quản lý lớp mới có thể giao bài.");
+        }
     }
 
     @Transactional

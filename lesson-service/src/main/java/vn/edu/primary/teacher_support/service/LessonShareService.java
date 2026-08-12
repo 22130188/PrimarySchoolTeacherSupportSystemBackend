@@ -11,6 +11,7 @@ import vn.edu.primary.teacher_support.dto.UserDto;
 import vn.edu.primary.teacher_support.entity.LessonClassroomShare;
 import vn.edu.primary.teacher_support.entity.LessonDraft;
 import vn.edu.primary.teacher_support.entity.LessonShare;
+import vn.edu.primary.teacher_support.entity.enums.LessonDraftStatus;
 import vn.edu.primary.teacher_support.entity.enums.SharePermission;
 import vn.edu.primary.teacher_support.exception.BusinessException;
 import vn.edu.primary.teacher_support.exception.ForbiddenException;
@@ -41,6 +42,7 @@ public class LessonShareService {
     public ShareResponse shareDraft(Long draftId, Long ownerUserId, String email, SharePermission permission) {
         LessonDraft draft = draftRepository.findByIdAndUserId(draftId, ownerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài giảng hoặc bạn không phải chủ sở hữu"));
+        requireCompleted(draft);
 
         UserDto targetUser = userServiceClient.findByEmail(email.trim().toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy giáo viên với email: " + email));
@@ -130,6 +132,7 @@ public class LessonShareService {
                     if (draftOpt.isEmpty()) return null;
 
                     LessonDraft draft = draftOpt.get();
+                    if (draft.getStatus() != LessonDraftStatus.PUBLISHED) return null;
                     UserDto owner = userServiceClient.findById(share.getOwnerUserId()).orElse(null);
 
                     return SharedDraftResponse.builder()
@@ -159,6 +162,7 @@ public class LessonShareService {
 
         LessonDraft draft = draftRepository.findById(draftId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài giảng"));
+        requireCompleted(draft);
 
         UserDto owner = userServiceClient.findById(share.getOwnerUserId()).orElse(null);
 
@@ -192,6 +196,7 @@ public class LessonShareService {
 
         LessonDraft original = draftRepository.findById(draftId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài giảng gốc"));
+        requireCompleted(original);
 
         LessonDraft copy = LessonDraft.builder()
                 .userId(userId)
@@ -217,6 +222,7 @@ public class LessonShareService {
         }
         LessonDraft draft = draftRepository.findByIdAndUserId(draftId, ownerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài giảng hoặc bạn không phải chủ sở hữu"));
+        requireCompleted(draft);
 
         Long classroomTeacherId = classroomServiceClient.getClassroomTeacherId(classroomId);
         if (classroomTeacherId == null) {
@@ -317,6 +323,7 @@ public class LessonShareService {
                     if (draftOpt.isEmpty()) return null;
 
                     LessonDraft draft = draftOpt.get();
+                    if (draft.getStatus() != LessonDraftStatus.PUBLISHED) return null;
                     UserDto owner = userServiceClient.findById(share.getOwnerUserId()).orElse(null);
 
                     return SharedDraftResponse.builder()
@@ -351,6 +358,7 @@ public class LessonShareService {
 
         LessonDraft draft = draftRepository.findById(draftId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài giảng"));
+        requireCompleted(draft);
 
         UserDto owner = userServiceClient.findById(share.getOwnerUserId()).orElse(null);
 
@@ -385,6 +393,12 @@ public class LessonShareService {
                 .permission(share.getPermission())
                 .createdAt(share.getCreatedAt())
                 .build();
+    }
+
+    private void requireCompleted(LessonDraft draft) {
+        if (draft.getStatus() != LessonDraftStatus.PUBLISHED) {
+            throw new BusinessException("Chỉ có thể chia sẻ bài giảng đã được đánh dấu là Bản hoàn chỉnh");
+        }
     }
 
     private String displayName(UserDto user) {

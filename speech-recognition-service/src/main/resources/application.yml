@@ -22,8 +22,9 @@ eureka:
 # Python API configuration
 python:
   api:
-    url: http://localhost:8001
-    timeout: 30000
+    url: ${PYTHON_API_URL:http://localhost:8001}
+    connect-timeout: ${PYTHON_API_CONNECT_TIMEOUT:10000}
+    read-timeout: ${PYTHON_API_READ_TIMEOUT:180000}
 
 # JWT Configuration (if needed)
 jwt:

@@ -12,6 +12,7 @@ import vn.edu.primary.teacher_support.entity.LessonDraft;
 import vn.edu.primary.teacher_support.entity.LessonPublicRating;
 import vn.edu.primary.teacher_support.entity.LessonPublicReport;
 import vn.edu.primary.teacher_support.entity.LessonPublicVerificationConfig;
+import vn.edu.primary.teacher_support.entity.enums.LessonDraftStatus;
 import vn.edu.primary.teacher_support.entity.enums.PublicReportStatus;
 import vn.edu.primary.teacher_support.entity.enums.PublicVerificationStatus;
 import vn.edu.primary.teacher_support.exception.BusinessException;
@@ -72,6 +73,9 @@ public class LessonPublicService {
     @Transactional
     public PublicLessonResponse publish(Long draftId, Long ownerUserId) {
         LessonDraft draft = requireOwned(draftId, ownerUserId);
+        if (draft.getStatus() != LessonDraftStatus.PUBLISHED) {
+            throw new BusinessException("Chỉ có thể chia sẻ công khai bài giảng đã được đánh dấu là Bản hoàn chỉnh");
+        }
         ensurePublicCounters(draft);
         draft.setIsPublic(true);
         // Always start as unverified; verification is earned later by metrics.
@@ -511,6 +515,9 @@ public class LessonPublicService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài giảng"));
         if (!Boolean.TRUE.equals(draft.getIsPublic())) {
             throw new ForbiddenException("Bài giảng này không còn công khai");
+        }
+        if (draft.getStatus() != LessonDraftStatus.PUBLISHED) {
+            throw new ForbiddenException("Bài giảng này chưa ở trạng thái Bản hoàn chỉnh");
         }
         return draft;
     }

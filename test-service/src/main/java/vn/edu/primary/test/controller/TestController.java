@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
@@ -450,6 +451,10 @@ public class TestController {
                 result.put("durationSeconds", attempt.getDurationSeconds());
                 if (!audioEvaluations.isEmpty()) {
                     result.put("audioEvaluations", audioEvaluations);
+                    long pendingReviewCount = audioEvaluations.stream()
+                            .filter(item -> Boolean.TRUE.equals(item.get("reviewRequired")))
+                            .count();
+                    result.put("pendingReviewCount", pendingReviewCount);
                 }
                 return ResponseEntity.ok(ApiResponse.success("Submission received", result));
             } catch (Exception ex) {
@@ -674,30 +679,54 @@ public class TestController {
         }
 
         try {
-            byte[] audioBytes = restTemplate.getForObject(audioUrl, byte[].class);
+            ResponseEntity<byte[]> audioResponse = restTemplate.exchange(
+                    audioUrl, HttpMethod.GET, HttpEntity.EMPTY, byte[].class);
+            byte[] audioBytes = audioResponse.getBody();
             if (audioBytes == null || audioBytes.length == 0) {
-                evaluation.put("message", "Không tải được file audio");
+                evaluation.put("message", "Không tải được file ghi âm. Câu này cần giáo viên chấm lại.");
+                evaluation.put("reviewRequired", true);
                 return evaluation;
             }
+
+            MediaType audioContentType = audioResponse.getHeaders().getContentType();
+            if (audioContentType == null) {
+                audioContentType = MediaType.APPLICATION_OCTET_STREAM;
+            }
+            String audioFilename = inferAudioFilename(audioUrl, audioContentType);
 
             ByteArrayResource audioResource = new ByteArrayResource(audioBytes) {
                 @Override
                 public String getFilename() {
-                    return "student-audio.wav";
+                    return audioFilename;
                 }
             };
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("target_text", targetText);
-            body.add("audio_file", audioResource);
+            HttpHeaders audioHeaders = new HttpHeaders();
+            audioHeaders.setContentType(audioContentType);
+            audioHeaders.setContentDispositionFormData("audio_file", audioFilename);
+            body.add("audio_file", new HttpEntity<>(audioResource, audioHeaders));
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
-            String url = speechRecognitionApiUrl.endsWith("/") ? speechRecognitionApiUrl + "check" : speechRecognitionApiUrl + "/check";
-            String responseJson = restTemplate.postForObject(url, requestEntity, String.class);
+            String url = appendPronunciationCheckPath(speechRecognitionApiUrl);
+            String responseJson;
+            try {
+                responseJson = restTemplate.postForObject(url, requestEntity, String.class);
+            } catch (RestClientException primaryError) {
+                String fallbackUrl = appendPronunciationCheckPath(pythonApiUrl + "/api/pronunciation");
+                if (fallbackUrl.equalsIgnoreCase(url)) {
+                    throw primaryError;
+                }
+                log.warn("Pronunciation service unavailable at {}, retrying FastAPI at {}: {}",
+                        url, fallbackUrl, primaryError.getMessage());
+                responseJson = restTemplate.postForObject(fallbackUrl, requestEntity, String.class);
+            }
             if (responseJson == null) {
-                evaluation.put("message", "Dịch vụ kiểm tra phát âm không trả về dữ liệu");
+                evaluation.put("message", "Dịch vụ kiểm tra phát âm không trả về dữ liệu. Câu này cần giáo viên chấm lại.");
+                evaluation.put("reviewRequired", true);
                 return evaluation;
             }
 
@@ -728,9 +757,29 @@ public class TestController {
             }
         } catch (Exception e) {
             log.warn("Error checking pronunciation for question {}: {}", question.getId(), e.getMessage(), e);
-            evaluation.put("message", "Lỗi khi kiểm tra phát âm: " + e.getMessage());
+            evaluation.put("message", "Dịch vụ kiểm tra phát âm tạm thời không khả dụng. Câu này cần giáo viên chấm lại.");
+            evaluation.put("reviewRequired", true);
         }
         return evaluation;
+    }
+
+    private String appendPronunciationCheckPath(String baseUrl) {
+        return baseUrl.endsWith("/") ? baseUrl + "check" : baseUrl + "/check";
+    }
+
+    private String inferAudioFilename(String audioUrl, MediaType contentType) {
+        String path = audioUrl == null ? "" : audioUrl.split("[?#]", 2)[0].toLowerCase();
+        for (String extension : new String[]{".webm", ".ogg", ".mp3", ".m4a", ".wav"}) {
+            if (path.endsWith(extension)) {
+                return "student-audio" + extension;
+            }
+        }
+        String subtype = contentType == null ? "" : contentType.getSubtype().toLowerCase();
+        if (subtype.contains("webm")) return "student-audio.webm";
+        if (subtype.contains("ogg") || subtype.contains("opus")) return "student-audio.ogg";
+        if (subtype.contains("mpeg") || subtype.contains("mp3")) return "student-audio.mp3";
+        if (subtype.contains("m4a") || subtype.contains("aac") || subtype.contains("mp4")) return "student-audio.m4a";
+        return "student-audio.wav";
     }
 
     private String extractAudioUrl(Object answerObj) {
