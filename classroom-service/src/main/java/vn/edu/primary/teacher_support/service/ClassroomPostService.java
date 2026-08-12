@@ -1,6 +1,8 @@
 package vn.edu.primary.teacher_support.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -35,6 +37,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ClassroomPostService {
 
@@ -49,6 +52,13 @@ public class ClassroomPostService {
     private final NotificationClient notificationClient;
     private final ActionLogClient actionLogClient;
     private final RestTemplate restTemplate;
+    /**
+     * The classroom service verifies a selected test directly over the Docker
+     * network. Do not omit the port: test-service listens on 8088, not 80.
+     */
+    @Value("${TEST_SERVICE_URL:http://test-service:8088}")
+    private String testServiceUrl;
+
 
     @Transactional(readOnly = true)
     public List<ClassroomPostResponse> getPosts(Long classroomId, Long requesterId, int limit) {
@@ -240,7 +250,7 @@ public class ClassroomPostService {
             HttpHeaders headers = new HttpHeaders();
             headers.set(HttpHeaders.AUTHORIZATION, authorization);
             ResponseEntity<Map> response = restTemplate.exchange(
-                    "http://test-service/api/tests/" + referenceTestId,
+                    testServiceUrl.replaceAll("/+$", "") + "/api/tests/" + referenceTestId,
                     HttpMethod.GET,
                     new HttpEntity<>(headers),
                     Map.class
@@ -268,6 +278,7 @@ public class ClassroomPostService {
         } catch (BusinessException exception) {
             throw exception;
         } catch (RestClientException exception) {
+            log.warn("Unable to verify {} {} through {}", label, referenceTestId, testServiceUrl, exception);
             throw new BusinessException("Không thể xác minh bài đã chọn. Vui lòng thử lại sau.");
         }
     }
