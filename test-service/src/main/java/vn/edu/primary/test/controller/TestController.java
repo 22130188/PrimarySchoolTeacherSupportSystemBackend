@@ -1164,10 +1164,7 @@ public class TestController {
         try {
             log.info("Downloading test {} as DOCX for admin", testId);
             UserInfo userInfo = resolveUserInfo(token);
-            if ((userInfo.getRoleId() == null || userInfo.getRoleId() != 3)
-                    && (userInfo.getRole() == null || !userInfo.getRole().equalsIgnoreCase("ADMIN"))) {
-                throw new RuntimeException("Access denied: admin role required");
-            }
+            validateAdminUser(userInfo);
 
             TestResponse testResponse = testService.getTestByIdForAdmin(testId);
             byte[] docxBytes = testService.generateDocx(testId, userInfo.getId());
@@ -1194,10 +1191,7 @@ public class TestController {
         try {
             log.info("Fetching test {} for admin", testId);
             UserInfo userInfo = resolveUserInfo(token);
-            if ((userInfo.getRoleId() == null || userInfo.getRoleId() != 3)
-                    && (userInfo.getRole() == null || !userInfo.getRole().equalsIgnoreCase("ADMIN"))) {
-                throw new RuntimeException("Access denied: admin role required");
-            }
+            validateAdminUser(userInfo);
             TestResponse testResponse = testService.getTestByIdForAdmin(testId);
             return ResponseEntity.ok(ApiResponse.success("Test fetched successfully", testResponse));
         } catch (Exception e) {
@@ -1247,17 +1241,17 @@ public class TestController {
             String username = jwtProvider.extractUsername(jwt);
             Long userId = jwtProvider.extractUserId(jwt);
             log.info("Local JWT parse result: username={}, userId={}", username, userId);
-            if (username != null && !username.isEmpty() && userId != null) {
-                return new UserInfo(userId, username);
-            }
         } else {
             log.warn("Local JWT validation failed, attempting gateway lookup");
         }
 
-        log.info("Resolving user info from gateway/user-service");
+        // The JWT only contains the user identity. Query user-service so role-based
+        // endpoints (such as the administrator test pages) receive the current role.
+        log.info("Resolving user info and role from gateway/user-service");
         UserInfo userInfo = fetchUserInfoFromGateway(authorizationHeader);
         if (userInfo != null && userInfo.getId() != null && userInfo.getUsername() != null) {
-            log.info("Resolved user info from gateway/user-service: id={}, username={}", userInfo.getId(), userInfo.getUsername());
+            log.info("Resolved user info from gateway/user-service: id={}, username={}, role={}",
+                    userInfo.getId(), userInfo.getUsername(), userInfo.getRole());
             return userInfo;
         }
 
