@@ -411,8 +411,8 @@ public class CollaboraSessionService {
                 throw new BusinessException("Khong co anh de chen vao Collabora");
             }
 
-            if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
-                throw new BusinessException("Chi ho tro file anh");
+            if (contentType == null || !(contentType.toLowerCase().startsWith("image/") || contentType.toLowerCase().startsWith("audio/"))) {
+                throw new BusinessException("Chi ho tro file anh hoac am thanh");
             }
 
             String extension = extensionFromContentType(contentType);
@@ -711,6 +711,10 @@ private String resolveActionUrl(String extension, String actionName) {
 
     private String extensionFromContentType(String contentType) {
         String normalized = contentType == null ? "" : contentType.toLowerCase();
+        if (normalized.contains("mpeg") || normalized.contains("mp3")) return "mp3";
+        if (normalized.contains("wav")) return "wav";
+        if (normalized.contains("ogg")) return "ogg";
+        if (normalized.contains("m4a") || normalized.contains("mp4")) return "m4a";
         if (normalized.contains("jpeg") || normalized.contains("jpg")) return "jpg";
         if (normalized.contains("gif")) return "gif";
         if (normalized.contains("webp")) return "webp";
