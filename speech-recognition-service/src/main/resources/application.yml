@@ -23,7 +23,7 @@ python:
   api:
     url: ${PYTHON_API_URL:http://localhost:8001}
     connect-timeout: ${PYTHON_API_CONNECT_TIMEOUT:10000}
-    read-timeout: ${PYTHON_API_READ_TIMEOUT:180000}
+    read-timeout: ${PYTHON_API_READ_TIMEOUT:85000}
 
 # JWT Configuration (if needed)
 jwt:
