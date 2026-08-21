@@ -7,6 +7,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
@@ -164,7 +165,9 @@ public class TestController {
             log.info("Fetching all questions for current user");
             Long userId = extractUserIdFromToken(token);
             List<QuestionDTO> questions = testService.getAllQuestionsByUser(userId);
-            return ResponseEntity.ok(ApiResponse.success("Questions fetched successfully", questions));
+            return ResponseEntity.ok()
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiResponse.success("Questions fetched successfully", questions));
         } catch (RuntimeException e) {
             log.error("Authentication error fetching questions", e);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -191,7 +194,9 @@ public class TestController {
             log.info("Fetching filtered questions: filterType={}, subject={}, lessonContent={}", filterType, subject, lessonContent);
             Long userId = extractUserIdFromToken(token);
             List<QuestionDTO> questions = testService.getFilteredQuestions(userId, filterType, subject, lessonContent, testType);
-            return ResponseEntity.ok(ApiResponse.success("Questions fetched successfully", questions));
+            return ResponseEntity.ok()
+                    .cacheControl(CacheControl.noStore())
+                    .body(ApiResponse.success("Questions fetched successfully", questions));
         } catch (RuntimeException e) {
             log.error("Authentication error fetching questions", e);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

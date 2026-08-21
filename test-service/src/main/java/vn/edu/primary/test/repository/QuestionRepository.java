@@ -25,24 +25,24 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
     @Query("SELECT q FROM Question q WHERE q.test.lessonContentName = :lessonContent AND q.test.createdBy = :userId ORDER BY q.id DESC")
     List<Question> findByLessonContentAndCreatedByOrderByIdDesc(String lessonContent, Long userId);
 
-    @Query("SELECT q FROM Question q WHERE q.createdBy = :userId ORDER BY q.createdAt DESC")
+    @Query("SELECT q FROM Question q LEFT JOIN q.test t WHERE q.createdBy = :userId OR t.createdBy = :userId ORDER BY COALESCE(q.createdAt, t.createdAt) DESC, q.id DESC")
     List<Question> findByCreatedByOrderByCreatedAtDesc(Long userId);
 
-    @Query("SELECT q FROM Question q WHERE q.createdBy = :userId AND q.isShared = true ORDER BY q.createdAt DESC")
+    @Query("SELECT q FROM Question q LEFT JOIN q.test t WHERE (q.createdBy = :userId OR t.createdBy = :userId) AND q.isShared = true ORDER BY COALESCE(q.createdAt, t.createdAt) DESC, q.id DESC")
     List<Question> findSharedQuestionsByUserOrderByCreatedAtDesc(Long userId);
 
-    @Query("SELECT q FROM Question q WHERE q.createdBy = :userId AND q.isShared = false ORDER BY q.createdAt DESC")
+    @Query("SELECT q FROM Question q LEFT JOIN q.test t WHERE (q.createdBy = :userId OR t.createdBy = :userId) AND (q.isShared = false OR q.isShared IS NULL) ORDER BY COALESCE(q.createdAt, t.createdAt) DESC, q.id DESC")
     List<Question> findPrivateQuestionsForUserOrderByCreatedAtDesc(Long userId);
 
-    @Query("SELECT q FROM Question q WHERE q.createdBy = :userId OR q.test.createdBy = :userId ORDER BY q.createdAt DESC")
+    @Query("SELECT q FROM Question q LEFT JOIN q.test t WHERE q.createdBy = :userId OR t.createdBy = :userId ORDER BY COALESCE(q.createdAt, t.createdAt) DESC, q.id DESC")
     List<Question> findByCreatedByOrTestCreatedByOrderByCreatedAtDesc(Long userId);
 
-    @Query("SELECT q FROM Question q WHERE q.isShared = true AND q.createdBy != :userId ORDER BY q.createdAt DESC")
+    @Query("SELECT q FROM Question q LEFT JOIN q.test t WHERE q.isShared = true AND (q.createdBy IS NULL OR q.createdBy <> :userId) AND (t.createdBy IS NULL OR t.createdBy <> :userId) ORDER BY COALESCE(q.createdAt, t.createdAt) DESC, q.id DESC")
     List<Question> findSharedQuestionsFromOthersOrderByCreatedAtDesc(Long userId);
 
-    @Query("SELECT q FROM Question q WHERE q.createdBy = :userId OR q.isShared = true ORDER BY q.createdAt DESC")
+    @Query("SELECT q FROM Question q LEFT JOIN q.test t WHERE q.createdBy = :userId OR t.createdBy = :userId OR (q.isShared = true AND (q.createdBy IS NULL OR q.createdBy <> :userId) AND (t.createdBy IS NULL OR t.createdBy <> :userId)) ORDER BY COALESCE(q.createdAt, t.createdAt) DESC, q.id DESC")
     List<Question> findOwnOrSharedQuestionsOrderByCreatedAtDesc(Long userId);
 
-    @Query("SELECT q FROM Question q WHERE (q.createdBy = :userId OR q.test.createdBy = :userId) AND q.isShared = true ORDER BY q.createdAt DESC")
+    @Query("SELECT q FROM Question q LEFT JOIN q.test t WHERE (q.createdBy = :userId OR t.createdBy = :userId) AND q.isShared = true ORDER BY COALESCE(q.createdAt, t.createdAt) DESC, q.id DESC")
     List<Question> findSharedQuestionsForUserOrderByCreatedAtDesc(Long userId);
 }

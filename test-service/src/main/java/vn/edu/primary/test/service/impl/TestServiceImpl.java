@@ -253,6 +253,9 @@ public class TestServiceImpl implements TestService {
                         .imageUrl(q.getImageUrl())
                         .transcript(q.getTranscript())
                         .orderIndex(request.getQuestions().indexOf(q))
+                        .createdBy(userId)
+                        .createdByName(updatedTest.getCreatedByName())
+                        .isShared(Boolean.TRUE.equals(q.getIsShared()))
                         .build())
                 .collect(Collectors.toList());
 
@@ -501,6 +504,13 @@ public class TestServiceImpl implements TestService {
         dto.setAudioUrl(question.getAudioUrl());
         dto.setImageUrl(question.getImageUrl());
         dto.setTranscript(question.getTranscript());
+        dto.setCreatedBy(question.getCreatedBy());
+        dto.setCreatedByName(question.getCreatedByName());
+        dto.setIsShared(Boolean.TRUE.equals(question.getIsShared()));
+        dto.setCreatedAt(question.getCreatedAt() != null
+                ? question.getCreatedAt()
+                : question.getTest() != null ? question.getTest().getCreatedAt() : null);
+        dto.setUpdatedAt(question.getUpdatedAt());
         
         if (question.getTest() != null) {
             dto.setLessonContentName(question.getTest().getLessonContentName());
