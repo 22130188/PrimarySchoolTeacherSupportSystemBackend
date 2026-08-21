@@ -6,6 +6,7 @@ import vn.edu.primary.translate.dto.DocumentTranslateRequest;
 import vn.edu.primary.translate.service.TranslateService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -85,7 +87,10 @@ public class TranslateController {
                     translateService.translateDocumentFile(file, sourceLang, targetLang);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=\"" + result.filename() + "\"")
+                            ContentDisposition.attachment()
+                                    .filename(result.filename(), StandardCharsets.UTF_8)
+                                    .build()
+                                    .toString())
                     .contentType(MediaType.parseMediaType(result.contentType()))
                     .body(result.body());
         } catch (IllegalArgumentException e) {

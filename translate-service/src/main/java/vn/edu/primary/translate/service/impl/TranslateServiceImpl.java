@@ -4,6 +4,7 @@ import vn.edu.primary.translate.service.TranslateService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -154,13 +155,9 @@ public class TranslateServiceImpl implements TranslateService {
             MediaType contentType = response.getHeaders().getContentType();
             String ct = contentType != null ? contentType.toString() : "application/octet-stream";
             String filename = "translated_" + originalName;
-            List<String> dispositions = response.getHeaders().get(HttpHeaders.CONTENT_DISPOSITION);
-            if (dispositions != null && !dispositions.isEmpty()) {
-                String cd = dispositions.get(0);
-                int idx = cd.toLowerCase().indexOf("filename=");
-                if (idx >= 0) {
-                    filename = cd.substring(idx + 9).replace("\"", "").trim();
-                }
+            ContentDisposition disposition = response.getHeaders().getContentDisposition();
+            if (disposition.getFilename() != null && !disposition.getFilename().isBlank()) {
+                filename = disposition.getFilename();
             }
 
             return new FileTranslateResult(response.getBody(), ct, filename);
