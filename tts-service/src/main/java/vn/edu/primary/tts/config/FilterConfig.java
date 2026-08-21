@@ -12,7 +12,7 @@ public class FilterConfig {
     public FilterRegistrationBean<JwtFilter> jwtFilterRegistration(JwtFilter jwtFilter) {
         FilterRegistrationBean<JwtFilter> registrationBean = new FilterRegistrationBean<>();
         registrationBean.setFilter(jwtFilter);
-        registrationBean.addUrlPatterns("/convert/*", "/audios/*");
+        registrationBean.addUrlPatterns("/convert", "/convert/*", "/save", "/upload", "/audios", "/audios/*", "/admin/*");
         registrationBean.setOrder(1);
         return registrationBean;
     }

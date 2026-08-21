@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
+import java.util.Set;
 
 @Component
 public class JwtFilter extends OncePerRequestFilter {
@@ -29,6 +30,8 @@ public class JwtFilter extends OncePerRequestFilter {
             
             request.setAttribute("username", username);
             request.setAttribute("userId", userId);
+            Set<String> roles = jwtProvider.extractRoles(token);
+            request.setAttribute("roles", roles);
         }
 
         filterChain.doFilter(request, response);
