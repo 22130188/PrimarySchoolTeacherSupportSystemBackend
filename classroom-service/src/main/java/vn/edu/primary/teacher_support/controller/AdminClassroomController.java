@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.primary.teacher_support.dto.*;
+import vn.edu.primary.teacher_support.entity.enums.ClassroomStatus;
 import vn.edu.primary.teacher_support.service.AdminClassroomService;
 import vn.edu.primary.teacher_support.service.AuthHelper;
 
@@ -21,10 +22,17 @@ public class AdminClassroomController {
     private final AuthHelper authHelper;
 
     @GetMapping
-    public ResponseEntity<List<AdminClassroomResponse>> getAllClassrooms(
-            @RequestHeader("Authorization") String authorization) {
+    public ResponseEntity<AdminClassroomPageResponse> getClassrooms(
+            @RequestHeader("Authorization") String authorization,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "8") int size,
+            @RequestParam(required = false) ClassroomStatus status,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "createdAt") String sort,
+            @RequestParam(defaultValue = "desc") String direction) {
         authHelper.validateAdmin(authorization);
-        return ResponseEntity.ok(adminClassroomService.getAllClassrooms());
+        return ResponseEntity.ok(adminClassroomService.getClassrooms(
+                page, size, status, keyword, sort, direction));
     }
 
     @GetMapping("/stats")

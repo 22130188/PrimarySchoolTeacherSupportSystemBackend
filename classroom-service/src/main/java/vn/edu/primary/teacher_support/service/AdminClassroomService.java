@@ -3,6 +3,10 @@ package vn.edu.primary.teacher_support.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.primary.teacher_support.dto.*;
@@ -19,6 +23,7 @@ import vn.edu.primary.teacher_support.repository.ClassroomRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,11 +44,35 @@ public class AdminClassroomService {
 
     private static final List<InvitationStatus> PENDING_STATUSES =
             List.of(InvitationStatus.INVITED, InvitationStatus.WAITING_REGISTER);
+    private static final int MAX_PAGE_SIZE = 24;
+    private static final Set<String> SORTABLE_FIELDS = Set.of(
+            "name", "classCode", "classDisplayName", "subject", "gradeLevel", "status", "createdAt");
 
-    public List<AdminClassroomResponse> getAllClassrooms() {
-        return classroomRepository.findByIsDeletedFalseOrderByCreatedAtDesc().stream()
+    public AdminClassroomPageResponse getClassrooms(
+            int page, int size, ClassroomStatus status, String keyword, String sort, String direction) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
+        String safeKeyword = keyword == null ? "" : keyword.trim();
+        String sortField = SORTABLE_FIELDS.contains(sort) ? sort : "createdAt";
+        Sort.Direction sortDirection = "asc".equalsIgnoreCase(direction)
+                ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(safePage, safeSize,
+                Sort.by(sortDirection, sortField).and(Sort.by(Sort.Direction.DESC, "id")));
+
+        Page<Classroom> resultPage = classroomRepository.findAdminClassrooms(status, safeKeyword, pageable);
+        List<AdminClassroomResponse> content = resultPage.getContent().stream()
                 .map(this::toAdminResponse)
                 .collect(Collectors.toList());
+
+        return AdminClassroomPageResponse.builder()
+                .content(content)
+                .page(resultPage.getNumber())
+                .size(resultPage.getSize())
+                .totalElements(resultPage.getTotalElements())
+                .totalPages(resultPage.getTotalPages())
+                .first(resultPage.isFirst())
+                .last(resultPage.isLast())
+                .build();
     }
     public AdminClassroomResponse getClassroomDetail(Long id) {
         Classroom classroom = classroomRepository.findByIdAndIsDeletedFalse(id)
